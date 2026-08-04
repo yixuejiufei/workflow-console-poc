@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import SettingsPanel from './components/SettingsPanel';
 import WorkflowCanvas from './components/WorkflowCanvas';
 import YamlEditor from './components/YamlEditor';
 import RunPanel from './components/RunPanel';
@@ -13,6 +14,7 @@ function App() {
   const [workflow, setWorkflow] = useState<WorkflowDef | null>(null);
   const [activeRun, setActiveRun] = useState<WorkflowRun | null>(null);
   const [runHistory, setRunHistory] = useState<WorkflowRun[]>([]);
+  const [rightTab, setRightTab] = useState<'run' | 'settings'>('run');
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -64,7 +66,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.0 POC</span></h1>
         </div>
         <div className="text-xs text-slate-400">
           引擎: http://localhost:8002
@@ -86,22 +88,43 @@ function App() {
         </div>
 
         <div className="w-80 shrink-0 flex flex-col">
-          <RunPanel
-            activeRun={activeRun}
-            onRunStarted={(run) => {
-              setActiveRun(run);
-              loadHistory();
-            }}
-            onRunUpdated={(run) => setActiveRun(run)}
-          />
+          <div className="flex border-b border-slate-200 bg-slate-50">
+            <button
+              onClick={() => setRightTab('run')}
+              className={`flex-1 py-2 text-xs font-medium ${rightTab === 'run' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              运行
+            </button>
+            <button
+              onClick={() => setRightTab('settings')}
+              className={`flex-1 py-2 text-xs font-medium ${rightTab === 'settings' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              设置
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {rightTab === 'run' ? (
+              <RunPanel
+                activeRun={activeRun}
+                onRunStarted={(run) => {
+                  setActiveRun(run);
+                  loadHistory();
+                }}
+                onRunUpdated={(run) => setActiveRun(run)}
+              />
+            ) : (
+              <SettingsPanel />
+            )}
+          </div>
 
           <div className="flex-1 border-t border-slate-200 bg-white overflow-auto">
             <div className="px-4 py-2 border-b border-slate-200 bg-slate-50">
-              <h3 className="text-xs font-semibold text-slate-700">历\u53f2\u8bb0\u5f55</h3>
+              <h3 className="text-xs font-semibold text-slate-700">历史记录</h3>
             </div>
             <div className="divide-y divide-slate-100">
               {runHistory.length === 0 && (
-                <div className="px-4 py-3 text-xs text-slate-400">暂\u65e0\u8bb0\u5f55</div>
+                <div className="px-4 py-3 text-xs text-slate-400">暂无记录</div>
               )}
               {runHistory.map((run) => (
                 <button

@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Props) {
-  const [workflowPath, setWorkflowPath] = useState('/home/ubuntu/YiNengFactory/tests/fixtures/test-workflow/workflow.yaml');
+  const [workflowPath, setWorkflowPath] = useState('/home/ubuntu/web-dev-agent-poc/workflow.yaml');
   const [inputsJson, setInputsJson] = useState('{"requirement": "\u521b\u5efa\u4e00\u4e2a\u7b80\u5355\u7684\u4ea7\u54c1\u9700\u6c42\u6587\u6863"}');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

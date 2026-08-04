@@ -19,15 +19,26 @@ export interface WorkflowRun {
   error?: string;
   started_at?: string;
   finished_at?: string;
-  node_states?: Record<string, NodeState>;
 }
 
-export interface NodeState {
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'waiting_approval';
-  started_at?: string;
-  finished_at?: string;
-  output?: any;
-  error?: string;
+export interface LLMSettings {
+  mode: 'engine' | 'factory' | null;
+  litellm_base_url: string | null;
+  litellm_master_key: string | null;
+  langfuse_host: string | null;
+  langfuse_public_key: string | null;
+  langfuse_secret_key: string | null;
+  default_model: string | null;
+  default_temperature: number | null;
+}
+
+export interface LLMStatus {
+  llm_ready: boolean;
+  missing: string[];
+  mode: string;
+  default_model: string;
+  agent_model: string;
+  effective_model: string;
 }
 
 export const runWorkflow = (req: WorkflowRunRequest) =>
@@ -50,5 +61,17 @@ export const resumeWorkflowRun = (runId: string) =>
 
 export const getQueueStatus = () =>
   api.get('/workflow/queue').then(r => r.data);
+
+export const getLLMSettings = () =>
+  api.get('/settings/llm').then(r => r.data);
+
+export const saveLLMSettings = (settings: Partial<LLMSettings>) =>
+  api.post('/settings/llm', settings).then(r => r.data);
+
+export const testLLMConnection = (settings: Partial<LLMSettings>) =>
+  api.post('/settings/llm/test', settings).then(r => r.data);
+
+export const getLLMStatus = () =>
+  api.get('/settings/llm/status').then(r => r.data);
 
 export default api;

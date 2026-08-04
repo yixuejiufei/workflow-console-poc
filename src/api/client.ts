@@ -15,11 +15,27 @@ export interface WorkflowRun {
   run_id: string;
   status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'waiting_approval';
   current_node: string | null;
+  executed_nodes?: string[];
+  workflow_path?: string;
   result?: any;
   error?: string;
   started_at?: string;
   finished_at?: string;
 }
+
+export interface NodeConfigResponse {
+  run_id: string;
+  node_id: string;
+  agent_path: string;
+  role: string | null;
+  content: string;
+}
+
+export const getNodeConfig = (runId: string, nodeId: string) =>
+  api.get<NodeConfigResponse>(`/workflow/runs/${runId}/nodes/${nodeId}/config`).then(r => r.data);
+
+export const getArtifactPreviewUrl = (runId: string, filePath: string) =>
+  `/api/v1/workflow/runs/${runId}/artifact-files/${encodeURIComponent(filePath)}`;
 
 export interface LLMSettings {
   mode: 'engine' | 'factory' | null;

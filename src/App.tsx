@@ -9,7 +9,7 @@ import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, generateSampleWorkflow } from './utils/yamlParser';
 import type { WorkflowDef } from './types/workflow';
 import type { WorkflowRun } from './api/client';
-import { getWorkflowRun, listWorkflowRuns } from './api/client';
+import { getWorkflowRun, listWorkflowRuns, getArtifactPreviewUrl } from './api/client';
 
 function App() {
   const [yamlText, setYamlText] = useState(generateSampleWorkflow());
@@ -79,7 +79,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.4 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.6 POC</span></h1>
         </div>
         <div className="flex items-center gap-3 text-xs">
           <div className={`flex items-center gap-1.5 ${connected ? 'text-green-400' : 'text-slate-400'}`}>
@@ -160,21 +160,37 @@ function App() {
               {runHistory.length === 0 && (
                 <div className="px-4 py-3 text-xs text-slate-400">暂无记录</div>
               )}
-              {runHistory.map((run) => (
-                <button
-                  key={run.run_id}
-                  onClick={() => setActiveRun(run)}
-                  className="w-full px-4 py-2 text-left hover:bg-slate-50"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-slate-500 truncate max-w-[120px]">{run.run_id}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusClass(run.status)}`}>{run.status}</span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
-                    {run.current_node || '-'}
-                  </div>
-                </button>
-              ))}
+              {runHistory.map((run) => {
+                const artifacts = run.result ? extractArtifacts(run.result) : [];
+                return (
+                  <button
+                    key={run.run_id}
+                    onClick={() => setActiveRun(run)}
+                    className="w-full px-4 py-2 text-left hover:bg-slate-50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-slate-500 truncate max-w-[120px]">{run.run_id}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusClass(run.status)}`}>{run.status}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {run.current_node || '-'}
+                    </div>
+                    {artifacts.length > 0 && (
+                      <div className="mt-1.5">
+                        <a
+                          href={getArtifactPreviewUrl(run.run_id, artifacts[0].path)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-block text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                        >
+                          产物预览
+                        </a>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -191,6 +207,39 @@ function statusClass(status: string) {
     case 'waiting_approval': return 'bg-amber-100 text-amber-700';
     default: return 'bg-slate-100 text-slate-600';
   }
+}
+
+function extractArtifacts(result: any): { label: string; path: string }[] {
+  const found: { label: string; path: string }[] = [];
+  const seen = new Set<string>();
+
+  const add = (label: string, path: string) => {
+    if (!path || typeof path !== 'string' || seen.has(path)) return;
+    const lower = path.toLowerCase();
+    const isPathLike = path.startsWith('/') || path.startsWith('http');
+    const isArtifactLike = /\.(html|css|js|png|jpg|jpeg|svg|txt|pdf|zip)$/i.test(lower) || /[\\/]outputs[\\/]/i.test(path) || /[\\/]artifacts[\\/]/i.test(path);
+    if (!isPathLike || !isArtifactLike) return;
+    seen.add(path);
+    found.push({ label, path });
+  };
+
+  if (result.output_path) add('输出文件', result.output_path);
+
+  const walk = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return;
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string') {
+        add(key, value);
+      } else if (Array.isArray(value)) {
+        value.forEach((v) => walk(v));
+      } else if (typeof value === 'object') {
+        walk(value);
+      }
+    }
+  };
+
+  walk(result);
+  return found;
 }
 
 export default App;

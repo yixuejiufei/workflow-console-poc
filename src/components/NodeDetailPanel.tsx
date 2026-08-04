@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { WorkflowDef, WorkflowNode } from '../types/workflow';
-import { getWorkflowRun } from '../api/client';
+import { getNodeConfig } from '../api/client';
 
 interface Props {
   nodeId: string | null;
@@ -9,36 +9,32 @@ interface Props {
   onClose: () => void;
 }
 
-interface AgentInfo {
-  node: string;
-  role?: string;
-  agent?: string;
-  model?: string;
-  temperature?: number;
-  max_tokens?: number;
-}
-
 export default function NodeDetailPanel({ nodeId, workflow, activeRunId, onClose }: Props) {
-  const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [configContent, setConfigContent] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const node: WorkflowNode | undefined = nodeId ? workflow?.nodes[nodeId] : undefined;
   const outgoingEdges = workflow?.edges.filter((e) => e.source === nodeId) || [];
 
   useEffect(() => {
-    if (!activeRunId || !nodeId) {
-      setAgentInfo(null);
+    setConfigContent(null);
+    setConfigError(null);
+    if (!activeRunId || !nodeId || !node?.agent) {
+      setLoading(false);
       return;
     }
     setLoading(true);
-    getWorkflowRun(activeRunId)
-      .then((run) => {
-        const workflowPath = run?.workflow_path as string | undefined;
-        if (!workflowPath) return;
-        // TODO: 引擎暂无提供节点 agent YAML 内容接口，需要 engine-request
+    getNodeConfig(activeRunId, nodeId)
+      .then((res) => {
+        setConfigContent(res.content);
+        setConfigError(null);
+      })
+      .catch((err) => {
+        setConfigError(err?.response?.data?.detail || err.message || '加载失败');
       })
       .finally(() => setLoading(false));
-  }, [activeRunId, nodeId]);
+  }, [activeRunId, nodeId, node?.agent]);
 
   if (!nodeId || !node) return null;
 
@@ -89,15 +85,23 @@ export default function NodeDetailPanel({ nodeId, workflow, activeRunId, onClose
 
         <div className="border-t border-slate-200 pt-3">
           <div className="text-slate-500 mb-1">Agent 配置</div>
-          <div className="bg-amber-50 text-amber-700 p-2 rounded text-[10px]">
-            引擎暂未提供节点 Agent YAML 内容读取接口。需创建 engine-request 后在此展示 test.yaml 等文件内容。
-          </div>
-          {agentInfo?.agent && (
-            <div className="mt-2 font-mono text-[10px] text-slate-600">{agentInfo.agent}</div>
+          {!node.agent && (
+            <div className="bg-slate-50 text-slate-500 p-2 rounded text-[10px]">
+              该节点未配置 agent。
+            </div>
+          )}
+          {node.agent && loading && (
+            <div className="text-slate-400 text-[10px]">加载中...</div>
+          )}
+          {node.agent && configError && (
+            <div className="text-red-600 bg-red-50 p-2 rounded text-[10px]">{configError}</div>
+          )}
+          {node.agent && configContent !== null && (
+            <pre className="font-mono text-[10px] bg-slate-50 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap">
+              {configContent}
+            </pre>
           )}
         </div>
-
-        {loading && <div className="text-slate-400">加载中...</div>}
       </div>
     </div>
   );

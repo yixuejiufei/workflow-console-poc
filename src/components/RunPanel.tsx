@@ -47,6 +47,8 @@ export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Prop
     }
   };
 
+  const artifacts = activeRun?.result ? extractArtifacts(activeRun.result) : [];
+
   return (
     <div className="flex flex-col h-full bg-white border-l border-slate-200">
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
@@ -124,6 +126,25 @@ export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Prop
           </div>
         )}
 
+        {artifacts.length > 0 && (
+          <div className="border border-slate-200 rounded p-3">
+            <h3 className="text-xs font-semibold text-slate-700 mb-2">生成的产物</h3>
+            <div className="space-y-2">
+              {artifacts.map((art, idx) => (
+                <div key={idx} className="bg-slate-50 rounded p-2 text-[10px]">
+                  <div className="font-medium text-slate-700">{art.label}</div>
+                  <div className="font-mono text-slate-500 break-all mt-0.5">{art.path}</div>
+                  {art.isHtml && (
+                    <div className="mt-1 text-amber-600">
+                      ✨ 需引擎提供静态预览/下载接口后可在此打开
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeRun?.result && (
           <div className="border border-slate-200 rounded p-3">
             <h3 className="text-xs font-semibold text-slate-700 mb-2">运\u884c\u7ed3\u679c</h3>
@@ -153,4 +174,38 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+function extractArtifacts(result: any): { label: string; path: string; isHtml: boolean }[] {
+  const found: { label: string; path: string; isHtml: boolean }[] = [];
+  const seen = new Set<string>();
+
+  const add = (label: string, path: string) => {
+    if (!path || typeof path !== 'string' || seen.has(path)) return;
+    seen.add(path);
+    found.push({ label, path, isHtml: path.toLowerCase().endsWith('.html') });
+  };
+
+  // 常见输出字段
+  if (result.output_path) add('输出文件', result.output_path);
+
+  // 遍历所字段找类似 path 的值
+  const walk = (obj: any, prefix: string) => {
+    if (!obj || typeof obj !== 'object') return;
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string') {
+        const lower = value.toLowerCase();
+        if (lower.endsWith('.html') || lower.endsWith('.css') || lower.endsWith('.js') || /outputs[\\/]/.test(value)) {
+          add(key, value);
+        }
+      } else if (Array.isArray(value)) {
+        value.forEach((v, i) => walk(v, `${prefix}.${key}[${i}]`));
+      } else if (typeof value === 'object') {
+        walk(value, `${prefix}.${key}`);
+      }
+    }
+  };
+
+  walk(result, 'result');
+  return found;
 }

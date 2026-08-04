@@ -3,6 +3,9 @@ import SettingsPanel from './components/SettingsPanel';
 import WorkflowCanvas from './components/WorkflowCanvas';
 import YamlEditor from './components/YamlEditor';
 import RunPanel from './components/RunPanel';
+import EventLog from './components/EventLog';
+import NodeDetailPanel from './components/NodeDetailPanel';
+import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, generateSampleWorkflow } from './utils/yamlParser';
 import type { WorkflowDef } from './types/workflow';
 import type { WorkflowRun } from './api/client';
@@ -14,8 +17,11 @@ function App() {
   const [workflow, setWorkflow] = useState<WorkflowDef | null>(null);
   const [activeRun, setActiveRun] = useState<WorkflowRun | null>(null);
   const [runHistory, setRunHistory] = useState<WorkflowRun[]>([]);
-  const [rightTab, setRightTab] = useState<'run' | 'settings'>('run');
+  const [rightTab, setRightTab] = useState<'run' | 'settings' | 'events'>('run');
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
+
+  const { events, connected, clearEvents } = useWorkflowEvents('');
 
   useEffect(() => {
     handleParse();
@@ -61,15 +67,28 @@ function App() {
     }
   };
 
+  const handleRunStarted = (run: WorkflowRun) => {
+    setActiveRun(run);
+    setRightTab('run');
+    clearEvents();
+    loadHistory();
+  };
+
   return (
     <div className="flex flex-col h-screen bg-slate-100">
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.3 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.4 POC</span></h1>
         </div>
-        <div className="text-xs text-slate-400">
-          引擎: http://localhost:8002
+        <div className="flex items-center gap-3 text-xs">
+          <div className={`flex items-center gap-1.5 ${connected ? 'text-green-400' : 'text-slate-400'}`}>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-slate-500'}`} />
+            {connected ? 'WebSocket 已连接' : 'WebSocket 未连接'}
+          </div>
+          <div className="text-slate-400">
+            引擎: http://localhost:8002
+          </div>
         </div>
       </header>
 
@@ -83,8 +102,18 @@ function App() {
           />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <WorkflowCanvas workflow={workflow} activeRun={activeRun} />
+        <div className="flex-1 min-w-0 relative">
+          <WorkflowCanvas
+            workflow={workflow}
+            activeRun={activeRun}
+            onNodeClick={(nodeId) => setSelectedNode(nodeId)}
+          />
+          <NodeDetailPanel
+            nodeId={selectedNode}
+            workflow={workflow}
+            activeRunId={activeRun?.run_id || null}
+            onClose={() => setSelectedNode(null)}
+          />
         </div>
 
         <div className="w-80 shrink-0 flex flex-col">
@@ -94,6 +123,12 @@ function App() {
               className={`flex-1 py-2 text-xs font-medium ${rightTab === 'run' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
             >
               运行
+            </button>
+            <button
+              onClick={() => setRightTab('events')}
+              className={`flex-1 py-2 text-xs font-medium ${rightTab === 'events' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              事件
             </button>
             <button
               onClick={() => setRightTab('settings')}
@@ -107,12 +142,11 @@ function App() {
             {rightTab === 'run' ? (
               <RunPanel
                 activeRun={activeRun}
-                onRunStarted={(run) => {
-                  setActiveRun(run);
-                  loadHistory();
-                }}
+                onRunStarted={handleRunStarted}
                 onRunUpdated={(run) => setActiveRun(run)}
               />
+            ) : rightTab === 'events' ? (
+              <EventLog events={events} runId={activeRun?.run_id} />
             ) : (
               <SettingsPanel />
             )}

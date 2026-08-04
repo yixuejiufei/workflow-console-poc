@@ -17,6 +17,7 @@ import type { WorkflowRun } from '../api/client';
 interface Props {
   workflow: WorkflowDef | null;
   activeRun: WorkflowRun | null;
+  onNodeClick?: (nodeId: string) => void;
 }
 
 const nodeColor = (type: string) => {
@@ -86,7 +87,7 @@ function nodeStatusClass(status: string) {
 
 const nodeTypes = { custom: CustomNode };
 
-export default function WorkflowCanvas({ workflow, activeRun }: Props) {
+export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Props) {
   const initialNodes = useMemo<Node[]>(() => {
     if (!workflow) return [];
     return Object.values(workflow.nodes).map(n => {
@@ -137,6 +138,7 @@ export default function WorkflowCanvas({ workflow, activeRun }: Props) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeClick={(_, node) => onNodeClick?.(node.id)}
         nodeTypes={nodeTypes}
         fitView
       >

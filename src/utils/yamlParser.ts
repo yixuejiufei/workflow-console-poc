@@ -32,6 +32,22 @@ export function parseWorkflowYaml(text: string): WorkflowDef {
     }
   });
 
+  // 补全边上的节点（如 __end__），避免后续布局时访问 undefined
+  edges.forEach(e => {
+    if (!nodes[e.target]) {
+      nodes[e.target] = {
+        id: e.target,
+        type: e.target === '__end__' ? 'end' : 'agent',
+      };
+    }
+    if (!nodes[e.source]) {
+      nodes[e.source] = {
+        id: e.source,
+        type: 'agent',
+      };
+    }
+  });
+
   // Simple topological layout
   const levels = computeLevels(data.initial_state, edges);
   const levelWidths: Record<number, number> = {};
@@ -73,9 +89,9 @@ function computeLevels(start: string, edges: WorkflowEdge[]): Record<string, num
   while (queue.length) {
     const curr = queue.shift()!;
     for (const next of adj[curr] || []) {
-      const newLevel = levels[curr] + 1;
-      if (levels[next] === undefined || newLevel > levels[next]) {
-        levels[next] = newLevel;
+      // 只给未分配层级的节点赋值，避免 DAG 中的环导致层级无限增长、主线程卡死
+      if (levels[next] === undefined) {
+        levels[next] = levels[curr] + 1;
         queue.push(next);
       }
     }

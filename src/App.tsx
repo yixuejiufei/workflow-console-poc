@@ -55,7 +55,7 @@ function App() {
   const loadHistory = async () => {
     try {
       const runs = await listWorkflowRuns();
-      setRunHistory(runs.items || runs || []);
+      setRunHistory(runs?.runs || runs?.items || []);
     } catch (err) {
       console.error(err);
     }
@@ -66,7 +66,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.0 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.3 POC</span></h1>
         </div>
         <div className="text-xs text-slate-400">
           引擎: http://localhost:8002

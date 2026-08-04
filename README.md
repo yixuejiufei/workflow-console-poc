@@ -7,6 +7,7 @@
 - 左侧 YAML 编辑器：编写 / 粘贴 workflow.yaml
 - 中间画布：ReactFlow 自动渲染节点与边（Agent / 审批 / 结束）
 - 右侧运行面板：启动 workflow、查看状态、人工审批 / 驳回 / 继续
+- 设置面板：LLM 模式、默认模型、LiteLLM 配置、连接测试
 - 实时轮询：活动 run 每 2 秒刷新状态
 - 历史记录：快速切换查看已有 run
 
@@ -38,6 +39,11 @@ npm run dev
    ```
 3. 填写 `inputs` JSON，点击"启动 Workflow"
 4. 画布上的节点会随状态高亮（running / completed / waiting_approval / failed）
+
+## 注意事项
+
+- LLM 模式：`engine` 表示走 LiteLLM 网关（即 LiteLLM 方式），`factory` 表示直连模型 API。
+- 当前默认 workflow 路径使用 `/home/ubuntu/web-dev-agent-poc/workflow.yaml`，该 workflow 使用 `ark/deepseek-v4-flash` 模型经 LiteLLM 代理。
 
 ## 未来增强
 

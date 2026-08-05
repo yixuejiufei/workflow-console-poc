@@ -7,6 +7,7 @@ import EventLog from './components/EventLog';
 import NodeDetailPanel from './components/NodeDetailPanel';
 import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, generateSampleWorkflow } from './utils/yamlParser';
+import { extractArtifacts } from './utils/artifacts';
 import type { WorkflowDef } from './types/workflow';
 import type { WorkflowRun } from './api/client';
 import { getWorkflowRun, listWorkflowRuns, getArtifactPreviewUrl } from './api/client';
@@ -79,7 +80,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.6 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.7 POC</span></h1>
         </div>
         <div className="flex items-center gap-3 text-xs">
           <div className={`flex items-center gap-1.5 ${connected ? 'text-green-400' : 'text-slate-400'}`}>
@@ -161,7 +162,8 @@ function App() {
                 <div className="px-4 py-3 text-xs text-slate-400">暂无记录</div>
               )}
               {runHistory.map((run) => {
-                const artifacts = run.result ? extractArtifacts(run.result) : [];
+                const projectDir = run.workflow_path ? run.workflow_path.substring(0, run.workflow_path.lastIndexOf('/')) : '';
+                const artifacts = run.result ? extractArtifacts(run.result, projectDir) : [];
                 return (
                   <button
                     key={run.run_id}
@@ -207,39 +209,6 @@ function statusClass(status: string) {
     case 'waiting_approval': return 'bg-amber-100 text-amber-700';
     default: return 'bg-slate-100 text-slate-600';
   }
-}
-
-function extractArtifacts(result: any): { label: string; path: string }[] {
-  const found: { label: string; path: string }[] = [];
-  const seen = new Set<string>();
-
-  const add = (label: string, path: string) => {
-    if (!path || typeof path !== 'string' || seen.has(path)) return;
-    const lower = path.toLowerCase();
-    const isPathLike = path.startsWith('/') || path.startsWith('http');
-    const isArtifactLike = /\.(html|css|js|png|jpg|jpeg|svg|txt|pdf|zip)$/i.test(lower) || /[\\/]outputs[\\/]/i.test(path) || /[\\/]artifacts[\\/]/i.test(path);
-    if (!isPathLike || !isArtifactLike) return;
-    seen.add(path);
-    found.push({ label, path });
-  };
-
-  if (result.output_path) add('输出文件', result.output_path);
-
-  const walk = (obj: any) => {
-    if (!obj || typeof obj !== 'object') return;
-    for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'string') {
-        add(key, value);
-      } else if (Array.isArray(value)) {
-        value.forEach((v) => walk(v));
-      } else if (typeof value === 'object') {
-        walk(value);
-      }
-    }
-  };
-
-  walk(result);
-  return found;
 }
 
 export default App;

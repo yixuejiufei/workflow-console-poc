@@ -5,7 +5,9 @@ import {
   approveWorkflowRun,
   rejectWorkflowRun,
   resumeWorkflowRun,
+  getArtifactPreviewUrl,
 } from '../api/client';
+import { extractArtifacts } from '../utils/artifacts';
 
 interface Props {
   activeRun: WorkflowRun | null;
@@ -126,12 +128,36 @@ export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Prop
 
         {activeRun?.result && (
           <div className="border border-slate-200 rounded p-3">
-            <h3 className="text-xs font-semibold text-slate-700 mb-2">运\u884c\u7ed3\u679c</h3>
+            <h3 className="text-xs font-semibold text-slate-700 mb-2">运行结果</h3>
             <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded overflow-auto max-h-40">
               {JSON.stringify(activeRun.result, null, 2)}
             </pre>
           </div>
         )}
+
+        {activeRun?.status === 'completed' && activeRun?.result && (() => {
+          const projectDir = activeRun.workflow_path ? activeRun.workflow_path.substring(0, activeRun.workflow_path.lastIndexOf('/')) : '';
+          const artifacts = extractArtifacts(activeRun.result, projectDir);
+          if (artifacts.length === 0) return null;
+          return (
+            <div className="border border-slate-200 rounded p-3">
+              <h3 className="text-xs font-semibold text-slate-700 mb-2">产物预览</h3>
+              <div className="flex flex-wrap gap-2">
+                {artifacts.map((a, idx) => (
+                  <a
+                    key={idx}
+                    href={getArtifactPreviewUrl(activeRun.run_id, a.path)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                  >
+                    {a.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {error && (
           <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>

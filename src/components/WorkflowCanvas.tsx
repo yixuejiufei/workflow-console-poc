@@ -90,9 +90,11 @@ const nodeTypes = { custom: CustomNode };
 export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Props) {
   const initialNodes = useMemo<Node[]>(() => {
     if (!workflow) return [];
+    const executed = new Set(activeRun?.executed_nodes || []);
     return Object.values(workflow.nodes).map(n => {
       let status = '';
       if (activeRun?.current_node === n.id) status = 'running';
+      else if (executed.has(n.id)) status = 'completed';
       else if (activeRun?.status === 'completed') status = 'completed';
       return {
         id: n.id,

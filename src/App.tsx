@@ -216,7 +216,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.11 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.12 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -271,127 +271,104 @@ function App() {
               />
             </div>
 
-            {/* 中间主区域：画布 */}
-            <div className="flex-1 flex flex-col min-w-0">
-              {/* 顶部：运行工作流按钮 + 用户输入框（画布最前面） */}
-              <div className="shrink-0 bg-white border-b border-slate-200">
-                <div className="flex items-center gap-2 px-4 py-2.5">
-                  <button
-                    onClick={handleRun}
-                    disabled={!runRequirement.trim() || running}
-                    className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium whitespace-nowrap ${
-                      !runRequirement.trim() || running
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    {running ? (
-                      <><span className="w-2 h-2 bg-blue-300 rounded-full animate-pulse" /> 运行中...</>
-                    ) : (
-                      <><span>▶</span> 运行工作流</>
-                    )}
-                  </button>
-                  <span className="text-[10px] text-slate-500 whitespace-nowrap font-medium">用户需求:</span>
-                  <input
-                    type="text"
-                    value={runRequirement}
-                    onChange={(e) => setRunRequirement(e.target.value)}
-                    placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
-                    className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                  />
-                  {runError && (
-                    <span className="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded">{runError}</span>
+              {/* 中间主区域：画布 */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="flex-1 flex overflow-hidden relative">
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <WorkflowCanvas
+                      workflow={workflow}
+                      activeRun={activeRun}
+                      onNodeClick={(nodeId) => setSelectedNode(nodeId)}
+                      runRequirement={runRequirement}
+                      onRequirementChange={setRunRequirement}
+                      onRun={handleRun}
+                      running={running}
+                    />
+                  </div>
+
+                  {/* 节点编辑弹窗 */}
+                  {selectedNode && (
+                    <NodeEditModal
+                      nodeId={selectedNode}
+                      workflow={workflow}
+                      activeRunId={activeRun?.run_id || null}
+                      onClose={() => setSelectedNode(null)}
+                      onSave={(nodeId, updates, edges) => {
+                        handleNodeSave(nodeId, updates, edges);
+                        setSelectedNode(null);
+                      }}
+                    />
                   )}
                 </div>
-              </div>
 
-              <div className="flex-1 flex overflow-hidden relative">
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <WorkflowCanvas
-                    workflow={workflow}
-                    activeRun={activeRun}
-                    onNodeClick={(nodeId) => setSelectedNode(nodeId)}
-                  />
-                </div>
-
-                {/* 节点编辑弹窗 */}
-                {selectedNode && (
-                  <NodeEditModal
-                    nodeId={selectedNode}
-                    workflow={workflow}
-                    activeRunId={activeRun?.run_id || null}
-                    onClose={() => setSelectedNode(null)}
-                    onSave={(nodeId, updates, edges) => {
-                      handleNodeSave(nodeId, updates, edges);
-                      setSelectedNode(null);
-                    }}
-                  />
-                )}
-              </div>
-
-              {/* 底部：运行状态 + 历史/事件 */}
-              <div className="shrink-0 bg-white border-t border-slate-200">
-                <div className="flex items-center gap-2 px-4 py-2">
-                  {/* 运行状态 */}
-                  {activeRun && (
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="font-mono text-slate-400 truncate max-w-[100px]">{activeRun.run_id}</span>
-                      <StatusBadge status={activeRun.status} />
-                      {activeRun.current_node && (
-                        <span className="text-slate-400">节点: {activeRun.current_node}</span>
-                      )}
-                      {/* 审批/继续按钮 */}
-                      {activeRun.status === 'waiting_approval' && (
-                        <span className="text-amber-600 text-[10px]">等待审批</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 产物预览（完成时显示） */}
-                  {currentArtifacts.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      {currentArtifacts.map((a, idx) => (
-                        <a
-                          key={idx}
-                          href={getArtifactPreviewUrl(activeRun!.run_id, a.path)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] px-2 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 font-medium"
-                        >
-                          {a.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={() => setDrawer(drawer === 'history' ? null : 'history')}
-                      className={`text-xs px-3 py-1.5 rounded border font-medium ${
-                        drawer === 'history'
-                          ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      历史记录
-                    </button>
-                    <button
-                      onClick={() => setDrawer(drawer === 'events' ? null : 'events')}
-                      className={`text-xs px-3 py-1.5 rounded border font-medium ${
-                        drawer === 'events'
-                          ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      事件
-                    </button>
-                    {selectedWorkflow && (
-                      <span className="text-[10px] text-slate-400 font-mono">{selectedWorkflow.path}</span>
+                {/* 底部：运行状态 + 历史/事件 */}
+                <div className="shrink-0 bg-white border-t border-slate-200">
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    {/* 运行状态 */}
+                    {activeRun && (
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="font-mono text-slate-400 truncate max-w-[100px]">{activeRun.run_id}</span>
+                        <StatusBadge status={activeRun.status} />
+                        {activeRun.current_node && (
+                          <span className="text-slate-400">节点: {activeRun.current_node}</span>
+                        )}
+                        {/* 审批/继续按钮 */}
+                        {activeRun.status === 'waiting_approval' && (
+                          <span className="text-amber-600 text-[10px]">等待审批</span>
+                        )}
+                      </div>
                     )}
+
+                    {/* 产物预览（完成时显示） */}
+                    {currentArtifacts.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {currentArtifacts.map((a, idx) => (
+                          <a
+                            key={idx}
+                            href={getArtifactPreviewUrl(activeRun!.run_id, a.path)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] px-2 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 font-medium"
+                          >
+                            {a.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 运行错误提示 */}
+                    {runError && (
+                      <span className="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded">{runError}</span>
+                    )}
+
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => setDrawer(drawer === 'history' ? null : 'history')}
+                        className={`text-xs px-3 py-1.5 rounded border font-medium ${
+                          drawer === 'history'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        历史记录
+                      </button>
+                      <button
+                        onClick={() => setDrawer(drawer === 'events' ? null : 'events')}
+                        className={`text-xs px-3 py-1.5 rounded border font-medium ${
+                          drawer === 'events'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        事件
+                      </button>
+                      {selectedWorkflow && (
+                        <span className="text-[10px] text-slate-400 font-mono">{selectedWorkflow.path}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
             {/* 右侧抽屉（仅历史/事件） */}
             {drawer && (

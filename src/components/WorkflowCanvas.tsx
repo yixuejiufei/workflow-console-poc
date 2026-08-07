@@ -18,7 +18,14 @@ interface Props {
   workflow: WorkflowDef | null;
   activeRun: WorkflowRun | null;
   onNodeClick?: (nodeId: string) => void;
+  runRequirement?: string;
+  onRequirementChange?: (v: string) => void;
+  onRun?: () => void;
+  running?: boolean;
 }
+
+const BEGIN_ID = '__begin__';
+const USERINPUT_ID = '__userinput__';
 
 const nodeColor = (type: string) => {
   switch (type) {
@@ -83,6 +90,74 @@ function CustomNode({ data }: any) {
   );
 }
 
+/** BEGIN 节点：运行工作流按钮（参考 end 节点样式） */
+function BeginNode({ data }: any) {
+  const disabled = !data.requirement?.trim() || data.running;
+  return (
+    <div
+      style={{
+        background: '#eff6ff',
+        borderColor: '#2563eb',
+        borderWidth: 2,
+        borderStyle: 'solid',
+        borderRadius: 8,
+        padding: '10px 14px',
+        minWidth: 150,
+        textAlign: 'center',
+      }}
+      className="shadow-sm"
+    >
+      <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
+      <div className="text-[10px] font-bold text-blue-600 tracking-wider mb-1.5">BEGIN</div>
+      <button
+        onClick={(e) => { e.stopPropagation(); data.onRun?.(); }}
+        disabled={disabled}
+        className={`flex items-center justify-center gap-1 text-xs px-3 py-1.5 rounded font-medium w-full ${
+          disabled
+            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+            : 'bg-blue-600 hover:bg-blue-700 text-white'
+        }`}
+      >
+        {data.running ? (
+          <><span className="w-2 h-2 bg-blue-300 rounded-full animate-pulse" /> 运行中...</>
+        ) : (
+          <><span>▶</span> 运行工作流</>
+        )}
+      </button>
+      <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
+    </div>
+  );
+}
+
+/** 用户需求参数输入节点 */
+function UserInputNode({ data }: any) {
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        borderColor: '#f59e0b',
+        borderWidth: 2,
+        borderStyle: 'solid',
+        borderRadius: 8,
+        padding: '10px 12px',
+        minWidth: 220,
+      }}
+      className="shadow-sm"
+    >
+      <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
+      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1.5">用户需求 INPUT</div>
+      <textarea
+        value={data.requirement || ''}
+        onChange={(e) => { e.stopPropagation(); data.onRequirementChange?.(e.target.value); }}
+        placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
+        rows={2}
+        className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-amber-500 resize-none bg-white"
+      />
+      <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
+    </div>
+  );
+}
+
 function statusBadgeClass(status: string) {
   switch (status) {
     case 'completed': return 'bg-green-100 text-green-700';
@@ -103,13 +178,21 @@ function nodeStatusClass(status: string) {
   }
 }
 
-const nodeTypes = { custom: CustomNode };
+const nodeTypes = { custom: CustomNode, begin: BeginNode, userinput: UserInputNode };
 
-export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Props) {
+export default function WorkflowCanvas({
+  workflow,
+  activeRun,
+  onNodeClick,
+  runRequirement = '',
+  onRequirementChange,
+  onRun,
+  running = false,
+}: Props) {
   const initialNodes = useMemo<Node[]>(() => {
     if (!workflow) return [];
     const executed = new Set(activeRun?.executed_nodes || []);
-    return Object.values(workflow.nodes).map(n => {
+    const wfNodes = Object.values(workflow.nodes).map(n => {
       let status = '';
       if (activeRun) {
         // 已完成/failed 的 workflow：current_node 也视为 completed/failed
@@ -138,11 +221,35 @@ export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Pro
         },
       };
     });
-  }, [workflow, activeRun]);
+
+    // 现有节点整体右移，为 begin / userinput 留出空间
+    const shifted = wfNodes.map(n => ({
+      ...n,
+      position: { x: (n.position?.x ?? 0) + 380, y: n.position?.y ?? 0 },
+    }));
+
+    // begin / userinput 与 initial_state 节点同一水平线
+    const startNode = workflow.nodes[workflow.initial_state];
+    const baseY = startNode?.position?.y ?? 250;
+
+    const beginNode: Node = {
+      id: BEGIN_ID,
+      type: 'begin',
+      position: { x: 20, y: baseY },
+      data: { requirement: runRequirement, running, onRun },
+    };
+    const userInputNode: Node = {
+      id: USERINPUT_ID,
+      type: 'userinput',
+      position: { x: 200, y: baseY },
+      data: { requirement: runRequirement, onRequirementChange },
+    };
+    return [beginNode, userInputNode, ...shifted];
+  }, [workflow, activeRun, runRequirement, running, onRun, onRequirementChange]);
 
   const initialEdges = useMemo<Edge[]>(() => {
     if (!workflow) return [];
-    return workflow.edges.map(e => ({
+    const wfEdges = workflow.edges.map(e => ({
       id: e.id,
       source: e.source,
       target: e.target,
@@ -150,6 +257,12 @@ export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Pro
       animated: activeRun?.current_node === e.source,
       style: activeRun?.current_node === e.source ? { stroke: '#3b82f6', strokeWidth: 3 } : {},
     }));
+    // begin → userinput → initial_state
+    const startEdges: Edge[] = [
+      { id: `${BEGIN_ID}->${USERINPUT_ID}`, source: BEGIN_ID, target: USERINPUT_ID },
+      { id: `${USERINPUT_ID}->${workflow.initial_state}`, source: USERINPUT_ID, target: workflow.initial_state },
+    ];
+    return [...startEdges, ...wfEdges];
   }, [workflow, activeRun]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -167,7 +280,10 @@ export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Pro
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={(_, node) => onNodeClick?.(node.id)}
+        onNodeClick={(_, node) => {
+          if (node.id === BEGIN_ID || node.id === USERINPUT_ID) return;
+          onNodeClick?.(node.id);
+        }}
         nodeTypes={nodeTypes}
         fitView
       >

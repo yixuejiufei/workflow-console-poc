@@ -9,6 +9,11 @@ interface Props {
   onClose: () => void;
 }
 
+function decodeUnicodeEscapes(text: string): string {
+  // 将 \uXXXX 转义序列解码为真实字符（如 \u9875 -> 页）
+  return text.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 export default function NodeDetailPanel({ nodeId, workflow, activeRunId, onClose }: Props) {
   const [configContent, setConfigContent] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -98,7 +103,7 @@ export default function NodeDetailPanel({ nodeId, workflow, activeRunId, onClose
           )}
           {node.agent && configContent !== null && (
             <pre className="font-mono text-[10px] bg-slate-50 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap">
-              {configContent}
+              {decodeUnicodeEscapes(configContent)}
             </pre>
           )}
         </div>

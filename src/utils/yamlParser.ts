@@ -71,6 +71,8 @@ export function parseWorkflowYaml(text: string): WorkflowDef {
     id: data.id,
     name: data.name,
     version: data.version,
+    description: data.description,
+    namespace: data.namespace,
     initial_state: data.initial_state,
     nodes,
     edges,
@@ -147,4 +149,51 @@ nodes:
     next:
       default: __end__
 `;
+}
+
+export function serializeWorkflow(wf: WorkflowDef): string {
+  // Reverse of parseWorkflowYaml: converts WorkflowDef back to YAML text
+  // Build a map of source -> edges for determining next/default/conditions
+  const outgoing: Record<string, { target: string; label?: string }[]> = {};
+  wf.edges.forEach(e => {
+    if (!outgoing[e.source]) outgoing[e.source] = [];
+    outgoing[e.source].push({ target: e.target, label: e.label });
+  });
+
+  // Group outgoing edges by label: if all edges have labels, use conditions; otherwise default + conditions
+  let lines = `id: ${wf.id}\n`;
+  lines += `name: ${wf.name}\n`;
+  if (wf.description) lines += `description: ${wf.description}\n`;
+  lines += `version: "${wf.version}"\n`;
+  if (wf.namespace) lines += `namespace: ${wf.namespace}\n`;
+  lines += `\ninitial_state: ${wf.initial_state}\n\n`;
+  lines += 'nodes:\n';
+
+  Object.entries(wf.nodes).forEach(([id, node]) => {
+    if (id === '__end__') return; // synthetic
+    lines += `  ${id}:\n`;
+    if (node.agent) lines += `    agent: ${node.agent}\n`;
+    if (node.interrupt_after) lines += `    interrupt_after: true\n`;
+    
+    const edges = outgoing[id] || [];
+    // Separate labeled edges (conditions) from unlabeled (default)
+    const labeled = edges.filter(e => e.label);
+    const unlabeled = edges.filter(e => !e.label);
+    
+    if (labeled.length > 0) {
+      lines += '    next:\n';
+      if (unlabeled.length > 0) {
+        lines += `      default: ${unlabeled[0].target}\n`;
+      }
+      lines += '      conditions:\n';
+      labeled.forEach(e => {
+        lines += `        ${e.label}: ${e.target}\n`;
+      });
+    } else if (unlabeled.length > 0) {
+      lines += '    next:\n';
+      lines += `      default: ${unlabeled[0].target}\n`;
+    }
+  });
+
+  return lines;
 }

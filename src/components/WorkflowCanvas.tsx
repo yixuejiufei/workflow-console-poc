@@ -36,20 +36,38 @@ const nodeBorder = (type: string) => {
   }
 };
 
+function statusStyle(status: string) {
+  switch (status) {
+    case 'running':
+      return { background: '#eff6ff', borderColor: '#3b82f6', boxShadow: '0 0 0 4px rgba(59,130,246,0.3)' };
+    case 'completed':
+      return { background: '#f0fdf4', borderColor: '#22c55e', boxShadow: '0 0 0 3px rgba(34,197,94,0.25)' };
+    case 'failed':
+      return { background: '#fef2f2', borderColor: '#ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.25)' };
+    case 'waiting_approval':
+      return { background: '#fffbeb', borderColor: '#f59e0b', boxShadow: '0 0 0 3px rgba(245,158,11,0.25)' };
+    default:
+      return {};
+  }
+}
+
 function CustomNode({ data }: any) {
+  const style = {
+    background: data.color,
+    borderColor: data.border,
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderRadius: 8,
+    padding: '8px 12px',
+    minWidth: 160,
+    textAlign: 'center' as const,
+    transition: 'all 0.3s ease',
+    ...statusStyle(data.status),
+  };
   return (
     <div
-      style={{
-        background: data.color,
-        borderColor: data.border,
-        borderWidth: 2,
-        borderStyle: 'solid',
-        borderRadius: 8,
-        padding: '8px 12px',
-        minWidth: 160,
-        textAlign: 'center',
-      }}
-      className={data.statusClass}
+      style={style}
+      className={`${data.statusClass} ${data.status === 'running' ? 'node-running-active' : ''}`}
     >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
       <div className="font-semibold text-slate-800">{data.label}</div>
@@ -93,9 +111,18 @@ export default function WorkflowCanvas({ workflow, activeRun, onNodeClick }: Pro
     const executed = new Set(activeRun?.executed_nodes || []);
     return Object.values(workflow.nodes).map(n => {
       let status = '';
-      if (activeRun?.current_node === n.id) status = 'running';
-      else if (executed.has(n.id)) status = 'completed';
-      else if (activeRun?.status === 'completed') status = 'completed';
+      if (activeRun) {
+        // 已完成/failed 的 workflow：current_node 也视为 completed/failed
+        if (activeRun.status === 'completed') {
+          if (executed.has(n.id) || activeRun.current_node === n.id) status = 'completed';
+        } else if (activeRun.status === 'failed') {
+          if (executed.has(n.id) || activeRun.current_node === n.id) status = 'failed';
+        } else if (activeRun.current_node === n.id) {
+          status = 'running';
+        } else if (executed.has(n.id)) {
+          status = 'completed';
+        }
+      }
       return {
         id: n.id,
         type: 'custom',

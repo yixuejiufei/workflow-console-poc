@@ -18,6 +18,8 @@ export interface WorkflowDef {
   id: string;
   name: string;
   version: string;
+  description?: string;
+  namespace?: string;
   initial_state: string;
   nodes: Record<string, WorkflowNode>;
   edges: WorkflowEdge[];

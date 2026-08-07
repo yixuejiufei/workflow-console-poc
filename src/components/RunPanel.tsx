@@ -13,11 +13,12 @@ interface Props {
   activeRun: WorkflowRun | null;
   onRunStarted: (run: WorkflowRun) => void;
   onRunUpdated: (run: WorkflowRun) => void;
+  initialWorkflowPath?: string;
 }
 
-export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Props) {
-  const [workflowPath, setWorkflowPath] = useState('/home/ubuntu/web-dev-agent-poc/workflow.yaml');
-  const [inputsJson, setInputsJson] = useState('{"requirement": "\u521b\u5efa\u4e00\u4e2a\u7b80\u5355\u7684\u4ea7\u54c1\u9700\u6c42\u6587\u6863"}');
+export default function RunPanel({ activeRun, onRunStarted, onRunUpdated, initialWorkflowPath }: Props) {
+  const [workflowPath, setWorkflowPath] = useState(initialWorkflowPath || '/home/ubuntu/YiNengFactory/web-dev-agent-poc/workflow.yaml');
+  const [inputsJson, setInputsJson] = useState(JSON.stringify({requirement: '创建一个简单的产品需求文档'}, null, 2));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +53,7 @@ export default function RunPanel({ activeRun, onRunStarted, onRunUpdated }: Prop
   return (
     <div className="flex flex-col h-full bg-white border-l border-slate-200">
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <h2 className="font-semibold text-sm text-slate-700">运\u884c\u63a7\u5236</h2>
+        <h2 className="font-semibold text-sm text-slate-700">运行控制</h2>
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">

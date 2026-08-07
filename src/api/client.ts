@@ -66,6 +66,51 @@ export const listWorkflowRuns = () =>
 export const getWorkflowRun = (runId: string) =>
   api.get(`/workflow/runs/${runId}`).then(r => r.data);
 
+export const getWorkflowConfig = (runId: string) =>
+  api.get(`/workflow/runs/${runId}/workflow-config`).then(r => r.data);
+
+export interface ProjectFile {
+  status: string;
+  path: string;
+  content: string;
+}
+
+export const readProjectFile = (path: string, runId?: string) =>
+  api.get<ProjectFile>('/project/file', { params: { path, run_id: runId } }).then(r => r.data);
+
+export const writeProjectFile = (path: string, content: string, runId?: string) =>
+  api.post('/project/file', { path, content, run_id: runId }).then(r => r.data);
+
+export interface AgentSummary {
+  name: string;
+  path: string;
+  model: string;
+  version: string;
+  description?: string;
+}
+
+export const listAgents = () =>
+  api.get('/agents').then(r => r.data);
+
+export const createAgent = (name: string, model: string, description: string) =>
+  api.post('/agents', { name, model, description }).then(r => r.data);
+
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  node_count: number;
+  path: string;
+  abs_path?: string;
+}
+
+export const listWorkflows = () =>
+  api.get('/workflows').then(r => r.data);
+
+export const createWorkflow = (name: string, description: string) =>
+  api.post('/workflows', { name, description }).then(r => r.data);
+
 export const approveWorkflowRun = (runId: string) =>
   api.post(`/workflow/runs/${runId}/approve`).then(r => r.data);
 

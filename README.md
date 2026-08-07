@@ -1,6 +1,6 @@
 # YiNeng Workflow Console (POC)
 
-基于 React + ReactFlow 的多 Agent 编排可视化控制台。**v0.1.12**
+基于 React + ReactFlow 的多 Agent 编排可视化控制台。**v0.1.13**
 
 ## 功能
 
@@ -58,6 +58,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.13**：节点标签对齐 `begin-userinput-webdev-end` 链——BEGIN→begin、用户需求 INPUT→userinput、__end__→end（引擎 ID 不变）
 - **v0.1.12**：运行控制画布节点化——BEGIN 节点（▶运行按钮）+ 用户需求 INPUT 节点（参数输入框），节点链 `begin→userinput→节点→__end__`
 - **v0.1.11**：运行区移到画布顶部（工作流最前面）；历史记录点击自动回填 requirement；运行后保留输入内容，支持「再跑一次」
 - **v0.1.10**：运行交互精简——移除"运行控制"抽屉，画布底部直接加用户需求输入框，输入为空时运行按钮置灰；引擎 `/api/v1/workflows` 补 `abs_path` 字段

@@ -108,7 +108,7 @@ function BeginNode({ data }: any) {
       className="shadow-sm"
     >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      <div className="text-[10px] font-bold text-blue-600 tracking-wider mb-1.5">BEGIN</div>
+      <div className="text-[10px] font-bold text-blue-600 tracking-wider mb-1.5">begin</div>
       <button
         onClick={(e) => { e.stopPropagation(); data.onRun?.(); }}
         disabled={disabled}
@@ -145,7 +145,7 @@ function UserInputNode({ data }: any) {
       className="shadow-sm"
     >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1.5">用户需求 INPUT</div>
+      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1.5">userinput</div>
       <textarea
         value={data.requirement || ''}
         onChange={(e) => { e.stopPropagation(); data.onRequirementChange?.(e.target.value); }}
@@ -211,7 +211,7 @@ export default function WorkflowCanvas({
         type: 'custom',
         position: n.position || { x: 0, y: 0 },
         data: {
-          label: n.id,
+          label: n.id === '__end__' ? 'end' : n.id,
           role: n.role,
           agent: n.agent,
           color: nodeColor(n.type),

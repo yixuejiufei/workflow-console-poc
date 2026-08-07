@@ -17,6 +17,7 @@ export interface WorkflowRun {
   current_node: string | null;
   executed_nodes?: string[];
   workflow_path?: string;
+  inputs?: Record<string, any>;
   result?: any;
   error?: string;
   started_at?: string;

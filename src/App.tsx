@@ -21,6 +21,13 @@ import {
 } from './api/client';
 import { extractArtifacts } from './utils/artifacts';
 
+/** 从 run 的 inputs 中提取 requirement 文本 */
+function requirementFromInputs(inputs: Record<string, any> | undefined): string {
+  if (!inputs) return '';
+  if (typeof inputs.requirement === 'string') return inputs.requirement;
+  try { return JSON.stringify(inputs); } catch { return ''; }
+}
+
 type TopTab = 'workflow' | 'agent' | 'settings';
 type DrawerContent = 'history' | 'events' | null;
 
@@ -140,7 +147,7 @@ function App() {
         inputs,
       });
       setActiveRun(run);
-      setRunRequirement('');
+      // 保留输入内容，便于"再跑一次"
       clearEvents();
       loadHistory();
     } catch (e: any) {
@@ -209,7 +216,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.10 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.11 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -266,6 +273,38 @@ function App() {
 
             {/* 中间主区域：画布 */}
             <div className="flex-1 flex flex-col min-w-0">
+              {/* 顶部：运行工作流按钮 + 用户输入框（画布最前面） */}
+              <div className="shrink-0 bg-white border-b border-slate-200">
+                <div className="flex items-center gap-2 px-4 py-2.5">
+                  <button
+                    onClick={handleRun}
+                    disabled={!runRequirement.trim() || running}
+                    className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium whitespace-nowrap ${
+                      !runRequirement.trim() || running
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {running ? (
+                      <><span className="w-2 h-2 bg-blue-300 rounded-full animate-pulse" /> 运行中...</>
+                    ) : (
+                      <><span>▶</span> 运行工作流</>
+                    )}
+                  </button>
+                  <span className="text-[10px] text-slate-500 whitespace-nowrap font-medium">用户需求:</span>
+                  <input
+                    type="text"
+                    value={runRequirement}
+                    onChange={(e) => setRunRequirement(e.target.value)}
+                    placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
+                    className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                  />
+                  {runError && (
+                    <span className="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded">{runError}</span>
+                  )}
+                </div>
+              </div>
+
               <div className="flex-1 flex overflow-hidden relative">
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <WorkflowCanvas
@@ -290,41 +329,9 @@ function App() {
                 )}
               </div>
 
-              {/* 底部：输入需求 + 运行控制 */}
+              {/* 底部：运行状态 + 历史/事件 */}
               <div className="shrink-0 bg-white border-t border-slate-200">
-                {/* 用户需求输入行 */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
-                  <span className="text-[10px] text-slate-500 whitespace-nowrap font-medium">用户需求:</span>
-                  <input
-                    type="text"
-                    value={runRequirement}
-                    onChange={(e) => setRunRequirement(e.target.value)}
-                    placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
-                    className="flex-1 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                  />
-                  {runError && (
-                    <span className="text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded">{runError}</span>
-                  )}
-                </div>
-
-                {/* 第二行：运行按钮 + 状态 + 历史/事件 */}
                 <div className="flex items-center gap-2 px-4 py-2">
-                  <button
-                    onClick={handleRun}
-                    disabled={!runRequirement.trim() || running}
-                    className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium ${
-                      !runRequirement.trim() || running
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    {running ? (
-                      <><span className="w-2 h-2 bg-blue-300 rounded-full animate-pulse" /> 运行中...</>
-                    ) : (
-                      <><span>▶</span> 运行工作流</>
-                    )}
-                  </button>
-
                   {/* 运行状态 */}
                   {activeRun && (
                     <div className="flex items-center gap-2 text-[10px]">
@@ -408,7 +415,10 @@ function App() {
                         return (
                           <button
                             key={run.run_id}
-                            onClick={() => setActiveRun(run)}
+                            onClick={() => {
+                              setActiveRun(run);
+                              setRunRequirement(requirementFromInputs(run.inputs));
+                            }}
                             className="w-full px-4 py-2.5 text-left hover:bg-slate-50"
                           >
                             <div className="flex items-center justify-between">

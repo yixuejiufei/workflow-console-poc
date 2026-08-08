@@ -125,6 +125,9 @@ export const resumeWorkflowRun = (runId: string) =>
 export const confirmWorkflowRun = (runId: string) =>
   api.post(`/workflow/runs/${runId}/confirm`).then(r => r.data);
 
+export const deleteWorkflowRun = (runId: string) =>
+  api.delete(`/workflow/runs/${runId}`).then(r => r.data);
+
 export const getQueueStatus = () =>
   api.get('/workflow/queue').then(r => r.data);
 

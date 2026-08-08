@@ -12,7 +12,7 @@ import {
 } from 'reactflow';
 import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, getArtifactPreviewUrl } from '../api/client';
+import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, deleteWorkflowRun, getArtifactPreviewUrl } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
 import { extractArtifacts } from '../utils/artifacts';
 
@@ -136,6 +136,13 @@ function TaskHeaderNode({ data }: any) {
       {data.confirmed && (
         <span className="text-[10px] text-slate-400 ml-auto">已确认</span>
       )}
+      <button
+        onClick={(e) => { e.stopPropagation(); data.onDelete?.(); }}
+        className="text-[10px] px-2 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium"
+        title="删除任务"
+      >
+        🗑 删除
+      </button>
     </div>
   );
 }
@@ -347,6 +354,20 @@ export default function TaskCanvasPanel() {
     }
   }, [tasks, updateTask]);
 
+  // 删除任务（有 run_id → 调引擎 DELETE 端点；无 run_id → 直接本地移除）
+  const handleDeleteTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    if (!window.confirm(`确定删除任务「${task.name}」吗？删除后不可恢复。`)) return;
+    // 本地立即移除（无论引擎调用是否成功，保证 UI 响应）
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    if (task.runId) {
+      deleteWorkflowRun(task.runId).catch((e: any) => {
+        console.warn('引擎删除 run 记录失败（issue-046 端点未就绪时属预期）:', e?.message || e);
+      });
+    }
+  }, [tasks]);
+
   // 轮询活跃任务
   useEffect(() => {
     const activeTasks = tasks.filter(t => ['running', 'queued'].includes(t.status) && t.runId);
@@ -408,6 +429,7 @@ export default function TaskCanvasPanel() {
             onRun: () => handleRunTask(task.id),
             onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
             onConfirm: () => handleConfirmTask(task.id),
+            onDelete: () => handleDeleteTask(task.id),
           });
           y += TASK_ROW_H;
         }
@@ -421,6 +443,7 @@ export default function TaskCanvasPanel() {
           onRun: () => handleRunTask(task.id),
           onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
           onConfirm: () => handleConfirmTask(task.id),
+          onDelete: () => handleDeleteTask(task.id),
         });
       }
     }
@@ -622,6 +645,7 @@ function addTaskNodes(
     onRun: () => void;
     onRequirementChange: (v: string) => void;
     onConfirm: () => void;
+    onDelete: () => void;
   },
 ) {
   const executeNodeStatus = task.activeRun
@@ -654,6 +678,7 @@ function addTaskNodes(
       confirmed: task.confirmed,
       previewUrl,
       onConfirm: handlers.onConfirm,
+      onDelete: handlers.onDelete,
     },
   });
 

@@ -5,6 +5,7 @@ import EventLog from './components/EventLog';
 import NodeEditModal from './components/NodeEditModal';
 import AgentConfigPanel from './components/AgentConfigPanel';
 import WorkflowListPanel from './components/WorkflowListPanel';
+import TaskCanvasPanel from './components/TaskCanvasPanel';
 import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, serializeWorkflow } from './utils/yamlParser';
 import type { WorkflowDef, WorkflowNode } from './types/workflow';
@@ -28,7 +29,7 @@ function requirementFromInputs(inputs: Record<string, any> | undefined): string 
   try { return JSON.stringify(inputs); } catch { return ''; }
 }
 
-type TopTab = 'workflow' | 'agent' | 'settings';
+type TopTab = 'tasks' | 'workflow' | 'agent' | 'settings';
 type DrawerContent = 'history' | 'events' | null;
 
 function App() {
@@ -216,12 +217,13 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.13 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.14 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
           {(
             [
+              { key: 'tasks', label: '任务画布' },
               { key: 'workflow', label: '工作流' },
               { key: 'agent', label: 'Agent' },
               { key: 'settings', label: '设置' },
@@ -249,6 +251,9 @@ function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
+        {topTab === 'tasks' && (
+          <TaskCanvasPanel />
+        )}
         {topTab === 'workflow' && (
           <>
             {/* 左侧：工作流列表 + YAML 编辑器（Agent 页签风格） */}

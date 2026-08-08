@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -8,8 +8,9 @@ import {
   useNodesState,
   useEdgesState,
   Position,
+  applyNodeChanges,
 } from 'reactflow';
-import type { Node, Edge } from 'reactflow';
+import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
@@ -238,6 +239,7 @@ export default function TaskCanvasPanel() {
   const [tasks, setTasks] = useState<TaskInstance[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [organized, setOrganized] = useState(false);
+  const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   // 加载可选工作流 & 恢复活跃任务
   useEffect(() => {
@@ -411,11 +413,90 @@ export default function TaskCanvasPanel() {
     return edges;
   }, [tasks]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(allNodes);
+  const [nodes, setNodes] = useNodesState(allNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(allEdges);
 
+  // 组拖拽：拖分类标题 → 该分类所有任务一起移动；拖任务标题 → 该任务所有子节点一起移动
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    setNodes(prevNodes => {
+      const extra: NodeChange[] = [];
+
+      for (const change of changes) {
+        if (change.type === 'position' && change.position && change.dragging) {
+          const currentPos = change.position;
+          const prevPos = nodePositionsRef.current[change.id];
+
+          if (prevPos) {
+            const dx = currentPos.x - prevPos.x;
+            const dy = currentPos.y - prevPos.y;
+
+            if (dx !== 0 || dy !== 0) {
+              // 分类标题拖拽 → 移动该分类下所有任务节点
+              if (change.id.startsWith('cat-')) {
+                const cat = change.id.slice(4);
+                const taskIdsInCat = new Set(
+                  tasks.filter(t => getCategory(t) === cat).map(t => t.id)
+                );
+                for (const node of prevNodes) {
+                  if (node.id === change.id) continue;
+                  const baseId = node.id.includes('__') ? node.id.split('__')[0] : node.id;
+                  if (taskIdsInCat.has(baseId)) {
+                    extra.push({
+                      id: node.id,
+                      type: 'position',
+                      position: {
+                        x: node.position.x + dx,
+                        y: node.position.y + dy,
+                      },
+                    });
+                  }
+                }
+              }
+
+              // 任务标题拖拽 → 移动该任务所有子节点
+              if (change.id.endsWith('__header')) {
+                const baseId = change.id.replace('__header', '');
+                const childSuffixes = ['__begin', '__userinput', '__web-dev', '__end'];
+                for (const suffix of childSuffixes) {
+                  const childId = `${baseId}${suffix}`;
+                  const childNode = prevNodes.find(n => n.id === childId);
+                  if (childNode) {
+                    extra.push({
+                      id: childId,
+                      type: 'position',
+                      position: {
+                        x: childNode.position.x + dx,
+                        y: childNode.position.y + dy,
+                      },
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          nodePositionsRef.current[change.id] = { x: currentPos.x, y: currentPos.y };
+        }
+      }
+
+      return applyNodeChanges([...changes, ...extra], prevNodes);
+    });
+  }, [setNodes, tasks]);
+
+  // 节点结构变化（增删任务/切换整理）时重置布局；仅数据变化（状态轮询）时保留拖拽位置
+  const prevNodeIdsRef = useRef<string>('');
   useEffect(() => {
-    setNodes(allNodes);
+    const nodeIds = allNodes.map(n => n.id).sort().join(',');
+    if (prevNodeIdsRef.current !== nodeIds) {
+      prevNodeIdsRef.current = nodeIds;
+      nodePositionsRef.current = {};
+      setNodes(allNodes);
+    } else {
+      setNodes(prev => allNodes.map(newNode => {
+        const oldNode = prev.find(n => n.id === newNode.id);
+        return oldNode ? { ...newNode, position: oldNode.position } : newNode;
+      }));
+    }
     setEdges(allEdges);
   }, [allNodes, allEdges, setNodes, setEdges]);
 
@@ -450,7 +531,7 @@ export default function TaskCanvasPanel() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           fitView
@@ -537,6 +618,7 @@ function addTaskNodes(
     id: `${task.id}__begin`,
     type: 'taskBegin',
     position: { x: ox, y: oy + 50 },
+    draggable: false,
     data: {
       requirement: task.requirement,
       status: taskNodeStatus,
@@ -548,6 +630,7 @@ function addTaskNodes(
     id: `${task.id}__userinput`,
     type: 'taskUserInput',
     position: { x: ox + 165, y: oy + 50 },
+    draggable: false,
     data: {
       requirement: task.requirement,
       onRequirementChange: handlers.onRequirementChange,
@@ -558,6 +641,7 @@ function addTaskNodes(
     id: `${task.id}__web-dev`,
     type: 'taskWorkflow',
     position: { x: ox + 400, y: oy + 50 },
+    draggable: false,
     data: { id: 'web-dev', status: wfNodeStatus },
   });
 
@@ -565,6 +649,7 @@ function addTaskNodes(
     id: `${task.id}__end`,
     type: 'taskWorkflow',
     position: { x: ox + 560, y: oy + 50 },
+    draggable: false,
     data: { id: '__end__', status: task.status === 'completed' ? 'completed' : '' },
   });
 }

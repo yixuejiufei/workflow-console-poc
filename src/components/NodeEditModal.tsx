@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { WorkflowDef, WorkflowNode } from '../types/workflow';
-import { getNodeConfig } from '../api/client';
+import { getNodeConfig, readProjectFile } from '../api/client';
 
 interface Props {
   nodeId: string | null;
@@ -37,20 +37,34 @@ export default function NodeEditModal({ nodeId, workflow, activeRunId, onClose, 
     setSaved(false);
     setConfigContent(null);
     setConfigError(null);
-    if (!activeRunId || !nodeId || !node?.agent) {
+    if (!nodeId || !node?.agent) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    getNodeConfig(activeRunId, nodeId)
-      .then((res) => {
-        setConfigContent(res.content);
-        setConfigError(null);
-      })
-      .catch((err) => {
-        setConfigError(err?.response?.data?.detail || err.message || '加载失败');
-      })
-      .finally(() => setLoading(false));
+    if (activeRunId) {
+      // 有 run 上下文：从 run 读取节点 Agent 配置（可定位到该 run 的 workflow 文件）
+      getNodeConfig(activeRunId, nodeId)
+        .then((res) => {
+          setConfigContent(res.content);
+          setConfigError(null);
+        })
+        .catch((err) => {
+          setConfigError(err?.response?.data?.detail || err.message || '加载失败');
+        })
+        .finally(() => setLoading(false));
+    } else {
+      // 无 run 上下文（如新建/从未运行的工作流）：直接读项目文件里的 agent.yaml 原文
+      readProjectFile(node.agent)
+        .then((res) => {
+          setConfigContent(res.content);
+          setConfigError(null);
+        })
+        .catch((err) => {
+          setConfigError(err?.response?.data?.detail || err.message || '加载失败');
+        })
+        .finally(() => setLoading(false));
+    }
   }, [activeRunId, nodeId, node?.agent]);
 
   // 点击编辑时填充表单
@@ -149,7 +163,12 @@ export default function NodeEditModal({ nodeId, workflow, activeRunId, onClose, 
                   <div className="text-slate-400 text-[10px]">加载中...</div>
                 )}
                 {node.agent && configError && (
-                  <div className="text-red-600 bg-red-50 p-2 rounded text-[10px]">{configError}</div>
+                  <div className="text-red-600 bg-red-50 p-2 rounded text-[10px]">
+                    {configError}
+                    {configError.includes('not found') && (
+                      <div className="mt-1 text-slate-500">提示：该节点引用的 Agent 文件不存在，请先在「Agent」页签创建名为 {node.agent} 的 Agent。</div>
+                    )}
+                  </div>
                 )}
                 {node.agent && configContent !== null && (
                   <pre className="font-mono text-[10px] bg-slate-50 p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap">

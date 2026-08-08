@@ -102,6 +102,15 @@ function App() {
         handleParse(f.content);
       })
       .catch((err) => setParseError(err?.response?.data?.detail || err.message));
+    // 若当前 activeRun 属于其他工作流（workflow_path 不匹配），清空避免节点配置读取串台
+    setActiveRun((prev) => {
+      if (prev?.workflow_path && selectedWorkflow.abs_path
+          && prev.workflow_path !== selectedWorkflow.abs_path
+          && !prev.workflow_path.endsWith('/' + selectedWorkflow.path)) {
+        return null;
+      }
+      return prev;
+    });
   }, [selectedWorkflow?.path]);
 
   // activeRun 变化时加载该 run 真实 workflow 配置来渲染画布

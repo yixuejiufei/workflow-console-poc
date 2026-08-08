@@ -22,6 +22,7 @@ export interface WorkflowRun {
   error?: string;
   started_at?: string;
   finished_at?: string;
+  confirmed?: boolean;
 }
 
 export interface NodeConfigResponse {
@@ -120,6 +121,9 @@ export const rejectWorkflowRun = (runId: string) =>
 
 export const resumeWorkflowRun = (runId: string) =>
   api.post(`/workflow/runs/${runId}/resume`).then(r => r.data);
+
+export const confirmWorkflowRun = (runId: string) =>
+  api.post(`/workflow/runs/${runId}/confirm`).then(r => r.data);
 
 export const getQueueStatus = () =>
   api.get('/workflow/queue').then(r => r.data);

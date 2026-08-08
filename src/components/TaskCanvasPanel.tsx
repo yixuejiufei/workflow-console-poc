@@ -12,7 +12,7 @@ import {
 } from 'reactflow';
 import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns } from '../api/client';
+import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
 
 interface TaskInstance {
@@ -267,6 +267,7 @@ export default function TaskCanvasPanel() {
           status: ['pending', 'queued', 'running', 'waiting_approval', 'completed', 'failed'].includes(run.status) ? run.status : 'completed',
           runId: run.run_id,
           activeRun: run,
+          confirmed: run.confirmed === true,
           createdAt: run.started_at ? new Date(run.started_at).getTime() : now + restored.length,
         });
       }
@@ -319,10 +320,15 @@ export default function TaskCanvasPanel() {
     updateTask(taskId, { requirement: value });
   }, [updateTask]);
 
-  // 确认任务（已完成/已失败 → 从画布隐藏）
+  // 确认任务（已完成/已失败 → 持久化到引擎 + 从画布隐藏）
   const handleConfirmTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
     updateTask(taskId, { confirmed: true });
-  }, [updateTask]);
+    // 引擎持久化（失败不阻断本地隐藏，下次刷新会从引擎恢复 confirmed）
+    if (task?.runId) {
+      confirmWorkflowRun(task.runId).catch(() => {});
+    }
+  }, [tasks, updateTask]);
 
   // 轮询活跃任务
   useEffect(() => {

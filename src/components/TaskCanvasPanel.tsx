@@ -25,6 +25,30 @@ interface TaskInstance {
   status: 'pending' | 'queued' | 'running' | 'waiting_approval' | 'completed' | 'failed';
   runId?: string;
   activeRun?: WorkflowRun | null;
+  confirmed?: boolean;
+}
+
+/** 任务分类 */
+type TaskCategory = 'unstarted' | 'running' | 'pending_approval' | 'completed_unconfirmed' | 'failed_unconfirmed';
+
+const CATEGORY_ORDER: TaskCategory[] = ['unstarted', 'running', 'pending_approval', 'completed_unconfirmed', 'failed_unconfirmed'];
+
+const CATEGORY_LABEL: Record<TaskCategory, string> = {
+  unstarted: '未开始',
+  running: '进行中',
+  pending_approval: '待审批',
+  completed_unconfirmed: '已完成待人类核实',
+  failed_unconfirmed: '已失败待人类核实',
+};
+
+function getCategory(task: TaskInstance): TaskCategory | null {
+  if (task.confirmed) return null; // 已确认 → 隐藏
+  if (!task.runId || task.status === 'pending') return 'unstarted';
+  if (task.status === 'running' || task.status === 'queued') return 'running';
+  if (task.status === 'waiting_approval') return 'pending_approval';
+  if (task.status === 'completed') return 'completed_unconfirmed';
+  if (task.status === 'failed') return 'failed_unconfirmed';
+  return 'unstarted';
 }
 
 function statusBadgeClass(status: string) {
@@ -51,21 +75,59 @@ function statusLabel(status: string) {
   }
 }
 
-/* 任务标题 + 状态徽章节点 */
+/* 分类标题节点 */
+function CategoryHeaderNode({ data }: any) {
+  const colors: Record<string, string> = {
+    unstarted: '#e2e8f0',
+    running: '#dbeafe',
+    pending_approval: '#fef3c7',
+    completed_unconfirmed: '#dcfce7',
+    failed_unconfirmed: '#fee2e2',
+  };
+  return (
+    <div
+      style={{
+        background: colors[data.category] || '#f1f5f9',
+        borderLeft: `4px solid ${data.borderColor || '#94a3b8'}`,
+        borderRadius: 4,
+        padding: '6px 14px',
+        minWidth: 260,
+      }}
+    >
+      <span className="text-xs font-bold text-slate-600">{data.label}</span>
+      {data.count !== undefined && (
+        <span className="text-[10px] text-slate-400 ml-2">({data.count})</span>
+      )}
+    </div>
+  );
+}
+
+/* 任务标题 + 状态徽章 + 确认按钮 */
 function TaskHeaderNode({ data }: any) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded shadow-sm border border-slate-200 min-w-[280px]">
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded shadow-sm border border-slate-200 min-w-[360px]">
       <span className="text-xs font-semibold text-slate-700">{data.name}</span>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusBadgeClass(data.status)}`}>
         {statusLabel(data.status)}
       </span>
+      {(data.status === 'completed' || data.status === 'failed') && !data.confirmed && (
+        <button
+          onClick={(e) => { e.stopPropagation(); data.onConfirm?.(); }}
+          className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded hover:bg-green-200 font-medium ml-auto"
+        >
+          ✓ 确认
+        </button>
+      )}
+      {data.confirmed && (
+        <span className="text-[10px] text-slate-400 ml-auto">已确认</span>
+      )}
     </div>
   );
 }
 
 /* BEGIN 运行按钮节点 */
 function TaskBeginNode({ data }: any) {
-  const disabled = !data.requirement?.trim() || data.running || ['running', 'queued'].includes(data.status);
+  const disabled = !data.requirement?.trim() || ['running', 'queued'].includes(data.status);
   return (
     <div
       style={{
@@ -162,16 +224,20 @@ function TaskWorkflowNode({ data }: any) {
 }
 
 const nodeTypes = {
+  categoryHeader: CategoryHeaderNode,
   taskHeader: TaskHeaderNode,
   taskBegin: TaskBeginNode,
   taskUserInput: TaskUserInputNode,
   taskWorkflow: TaskWorkflowNode,
 };
 
+const TASK_ROW_H = 175;
+
 export default function TaskCanvasPanel() {
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [tasks, setTasks] = useState<TaskInstance[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+  const [organized, setOrganized] = useState(false);
 
   // 加载可选工作流 & 恢复活跃任务
   useEffect(() => {
@@ -182,7 +248,6 @@ export default function TaskCanvasPanel() {
       const wfs = wfData?.workflows || [];
       setWorkflows(wfs);
       const allRuns = runData?.runs || runData?.items || [];
-      // 恢复最近的 run 为任务（最多 10 个）
       const restored: TaskInstance[] = [];
       for (const run of allRuns.slice(-10)) {
         const wfPath = run.workflow_path || '';
@@ -232,7 +297,7 @@ export default function TaskCanvasPanel() {
   const handleRunTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task || !task.absPath || !task.requirement.trim() || ['running', 'queued'].includes(task.status)) return;
-    updateTask(taskId, { status: 'pending' }); // reset
+    updateTask(taskId, { status: 'pending' });
     try {
       const run = await runWorkflow({
         workflow_path: task.absPath,
@@ -247,6 +312,11 @@ export default function TaskCanvasPanel() {
   // 更新 requirement
   const handleRequirementChange = useCallback((taskId: string, value: string) => {
     updateTask(taskId, { requirement: value });
+  }, [updateTask]);
+
+  // 确认任务（已完成/已失败 → 从画布隐藏）
+  const handleConfirmTask = useCallback((taskId: string) => {
+    updateTask(taskId, { confirmed: true });
   }, [updateTask]);
 
   // 轮询活跃任务
@@ -264,84 +334,80 @@ export default function TaskCanvasPanel() {
     return () => clearInterval(iv);
   }, [tasks, updateTask]);
 
-  // 构建画布节点
+  // 构建画布节点（过滤已确认 + 按需分组）
   const allNodes = useMemo<Node[]>(() => {
+    const visible = tasks.filter(t => !t.confirmed);
+    if (visible.length === 0) return [];
+
     const nodes: Node[] = [];
-    tasks.forEach((task, idx) => {
-      const ox = 30 + idx * 520; // 每任务水平偏移
-      const oy = 40;
-      const headerY = oy;
-      const rowY = oy + 55;
 
-      // 任务标题
-      nodes.push({
-        id: `${task.id}__header`,
-        type: 'taskHeader',
-        position: { x: ox, y: headerY },
-        data: { name: task.name, status: task.status },
-      });
+    if (organized) {
+      // 按分类分组
+      const groups: Record<TaskCategory, TaskInstance[]> = {
+        unstarted: [],
+        running: [],
+        pending_approval: [],
+        completed_unconfirmed: [],
+        failed_unconfirmed: [],
+      };
+      for (const t of visible) {
+        const cat = getCategory(t);
+        if (cat && groups[cat]) groups[cat].push(t);
+      }
 
-      // begin
-      nodes.push({
-        id: `${task.id}__begin`,
-        type: 'taskBegin',
-        position: { x: ox, y: rowY },
-        data: {
-          requirement: task.requirement,
-          running: false,
-          status: task.status,
+      const sectionGap = 40;
+      let y = 20;
+
+      for (const cat of CATEGORY_ORDER) {
+        const group = groups[cat];
+        if (group.length === 0) continue;
+
+        // 分类标题
+        nodes.push({
+          id: `cat-${cat}`,
+          type: 'categoryHeader',
+          position: { x: 20, y },
+          data: { category: cat, label: CATEGORY_LABEL[cat], count: group.length },
+        });
+        y += 36;
+
+        for (const task of group) {
+          addTaskNodes(nodes, task, 30, y, {
+            onRun: () => handleRunTask(task.id),
+            onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
+            onConfirm: () => handleConfirmTask(task.id),
+          });
+          y += TASK_ROW_H;
+        }
+        y += sectionGap;
+      }
+    } else {
+      // 垂直排列（默认）
+      for (let i = 0; i < visible.length; i++) {
+        const task = visible[i];
+        addTaskNodes(nodes, task, 30, 20 + i * TASK_ROW_H, {
           onRun: () => handleRunTask(task.id),
           onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
-        },
-      });
+          onConfirm: () => handleConfirmTask(task.id),
+        });
+      }
+    }
 
-      // userinput
-      nodes.push({
-        id: `${task.id}__userinput`,
-        type: 'taskUserInput',
-        position: { x: ox + 165, y: rowY },
-        data: {
-          requirement: task.requirement,
-          onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
-        },
-      });
-
-      // web-dev 工作流节点
-      const executeNodeStatus = task.activeRun
-        ? task.activeRun.status === 'completed'
-          ? (task.activeRun.executed_nodes || [task.activeRun.current_node]).includes('web-dev') ? 'completed' : ''
-          : task.activeRun.current_node === 'web-dev' ? 'running' : ''
-        : '';
-
-      nodes.push({
-        id: `${task.id}__web-dev`,
-        type: 'taskWorkflow',
-        position: { x: ox + 400, y: rowY },
-        data: { id: 'web-dev', status: task.status === 'running' ? (executeNodeStatus || '') : '' },
-      });
-
-      // end
-      nodes.push({
-        id: `${task.id}__end`,
-        type: 'taskWorkflow',
-        position: { x: ox + 560, y: rowY },
-        data: { id: '__end__', status: task.status === 'completed' ? 'completed' : '' },
-      });
-    });
     return nodes;
-  }, [tasks, handleRunTask, handleRequirementChange]);
+  }, [tasks, organized, handleRunTask, handleRequirementChange, handleConfirmTask]);
 
   // 构建边
   const allEdges = useMemo<Edge[]>(() => {
+    const visible = tasks.filter(t => !t.confirmed);
     const edges: Edge[] = [];
-    tasks.forEach(task => {
+    for (const task of visible) {
       const tid = task.id;
       edges.push(
         { id: `${tid}__begin->userinput`, source: `${tid}__begin`, target: `${tid}__userinput` },
         { id: `${tid}__userinput->web-dev`, source: `${tid}__userinput`, target: `${tid}__web-dev` },
         { id: `${tid}__web-dev->end`, source: `${tid}__web-dev`, target: `${tid}__end` },
       );
-    });
+    }
     return edges;
   }, [tasks]);
 
@@ -355,6 +421,30 @@ export default function TaskCanvasPanel() {
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden">
+      {/* 顶部工具栏 */}
+      <div className="shrink-0 bg-white border-b border-slate-200 px-4 py-1.5 flex items-center gap-3">
+        <button
+          onClick={() => setOrganized(!organized)}
+          className={`text-xs px-3 py-1 rounded font-medium border transition-colors ${
+            organized
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          {organized ? '取消整理' : '整理'}
+        </button>
+        {organized && (
+          <span className="text-[10px] text-slate-400">
+            按状态分类 · {tasks.filter(t => !t.confirmed).length} 个任务
+          </span>
+        )}
+        {!organized && (
+          <span className="text-[10px] text-slate-400">
+            {tasks.filter(t => !t.confirmed).length} 个任务 · 纵向排列
+          </span>
+        )}
+      </div>
+
       {/* 主画布区域 */}
       <div className="flex-1 bg-slate-50">
         <ReactFlow
@@ -364,11 +454,11 @@ export default function TaskCanvasPanel() {
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.15 }}
+          fitViewOptions={{ padding: 0.12 }}
         >
           <Background gap={16} size={1} color="#cbd5e1" />
           <Controls />
-          <MiniMap nodeColor={(n) => (n.type === 'taskHeader' ? '#e2e8f0' : n.data?.status === 'running' ? '#3b82f6' : '#94a3b8')} />
+          <MiniMap />
         </ReactFlow>
       </div>
 
@@ -409,4 +499,72 @@ export default function TaskCanvasPanel() {
       )}
     </div>
   );
+}
+
+/** 向节点数组添加一个任务的 5 个节点 */
+function addTaskNodes(
+  nodes: Node[],
+  task: TaskInstance,
+  ox: number,
+  oy: number,
+  handlers: {
+    onRun: () => void;
+    onRequirementChange: (v: string) => void;
+    onConfirm: () => void;
+  },
+) {
+  const executeNodeStatus = task.activeRun
+    ? task.activeRun.status === 'completed'
+      ? (task.activeRun.executed_nodes || [task.activeRun.current_node]).includes('web-dev') ? 'completed' : ''
+      : task.activeRun.current_node === 'web-dev' ? 'running' : ''
+    : '';
+  const taskNodeStatus = task.status;
+  const wfNodeStatus = task.status === 'running' ? (executeNodeStatus || '') : task.status === 'completed' ? 'completed' : '';
+
+  nodes.push({
+    id: `${task.id}__header`,
+    type: 'taskHeader',
+    position: { x: ox, y: oy },
+    data: {
+      name: task.name,
+      status: taskNodeStatus,
+      confirmed: task.confirmed,
+      onConfirm: handlers.onConfirm,
+    },
+  });
+
+  nodes.push({
+    id: `${task.id}__begin`,
+    type: 'taskBegin',
+    position: { x: ox, y: oy + 50 },
+    data: {
+      requirement: task.requirement,
+      status: taskNodeStatus,
+      onRun: handlers.onRun,
+    },
+  });
+
+  nodes.push({
+    id: `${task.id}__userinput`,
+    type: 'taskUserInput',
+    position: { x: ox + 165, y: oy + 50 },
+    data: {
+      requirement: task.requirement,
+      onRequirementChange: handlers.onRequirementChange,
+    },
+  });
+
+  nodes.push({
+    id: `${task.id}__web-dev`,
+    type: 'taskWorkflow',
+    position: { x: ox + 400, y: oy + 50 },
+    data: { id: 'web-dev', status: wfNodeStatus },
+  });
+
+  nodes.push({
+    id: `${task.id}__end`,
+    type: 'taskWorkflow',
+    position: { x: ox + 560, y: oy + 50 },
+    data: { id: '__end__', status: task.status === 'completed' ? 'completed' : '' },
+  });
 }

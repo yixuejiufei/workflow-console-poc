@@ -27,6 +27,7 @@ interface TaskInstance {
   runId?: string;
   activeRun?: WorkflowRun | null;
   confirmed?: boolean;
+  createdAt?: number;
 }
 
 /** 任务分类 */
@@ -251,12 +252,13 @@ export default function TaskCanvasPanel() {
       setWorkflows(wfs);
       const allRuns = runData?.runs || runData?.items || [];
       const restored: TaskInstance[] = [];
+      const now = Date.now();
       for (const run of allRuns.slice(-10)) {
         const wfPath = run.workflow_path || '';
         const wfSummary = wfs.find(w => wfPath.endsWith(w.path) || wfPath.endsWith('/' + w.path));
         restored.push({
           id: `task-${run.run_id}`,
-          name: wfSummary ? `${wfSummary.name} #${restored.length + 1}` : `Run ${run.run_id.slice(0, 8)}`,
+          name: run.run_id,
           workflowId: wfSummary?.id || '',
           workflowName: wfSummary?.name || '',
           workflowPath: wfSummary?.path || wfPath,
@@ -265,6 +267,7 @@ export default function TaskCanvasPanel() {
           status: ['pending', 'queued', 'running', 'waiting_approval', 'completed', 'failed'].includes(run.status) ? run.status : 'completed',
           runId: run.run_id,
           activeRun: run,
+          createdAt: run.started_at ? new Date(run.started_at).getTime() : now + restored.length,
         });
       }
       if (restored.length > 0) {
@@ -277,7 +280,7 @@ export default function TaskCanvasPanel() {
   const handleAddTask = useCallback((wf: WorkflowSummary) => {
     const newTask: TaskInstance = {
       id: `task-${Date.now().toString(36)}`,
-      name: `${wf.name} #${tasks.length + 1}`,
+      name: '新任务',
       workflowId: wf.id,
       workflowName: wf.name,
       workflowPath: wf.path,
@@ -305,7 +308,7 @@ export default function TaskCanvasPanel() {
         workflow_path: task.absPath,
         inputs: { requirement: task.requirement.trim() },
       });
-      updateTask(taskId, { runId: run.run_id, status: run.status, activeRun: run });
+      updateTask(taskId, { name: run.run_id, runId: run.run_id, status: run.status, activeRun: run });
     } catch {
       updateTask(taskId, { status: 'failed' });
     }
@@ -338,7 +341,7 @@ export default function TaskCanvasPanel() {
 
   // 构建画布节点（过滤已确认 + 按需分组）
   const allNodes = useMemo<Node[]>(() => {
-    const visible = tasks.filter(t => !t.confirmed);
+    const visible = tasks.filter(t => !t.confirmed).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (visible.length === 0) return [];
 
     const nodes: Node[] = [];
@@ -355,6 +358,10 @@ export default function TaskCanvasPanel() {
       for (const t of visible) {
         const cat = getCategory(t);
         if (cat && groups[cat]) groups[cat].push(t);
+      }
+      // 各组内部按时间倒序（最新在前）
+      for (const cat of CATEGORY_ORDER) {
+        groups[cat].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       }
 
       const sectionGap = 40;

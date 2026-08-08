@@ -12,8 +12,9 @@ import {
 } from 'reactflow';
 import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun } from '../api/client';
+import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, getArtifactPreviewUrl } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
+import { extractArtifacts } from '../utils/artifacts';
 
 interface TaskInstance {
   id: string;
@@ -104,14 +105,26 @@ function CategoryHeaderNode({ data }: any) {
   );
 }
 
-/* 任务标题 + 状态徽章 + 确认按钮 */
+/* 任务标题 + 状态徽章 + 确认按钮 + 预览页面 */
 function TaskHeaderNode({ data }: any) {
+  const canPreview = data.status === 'completed' && data.previewUrl;
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded shadow-sm border border-slate-200 min-w-[360px]">
       <span className="text-xs font-semibold text-slate-700">{data.name}</span>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusBadgeClass(data.status)}`}>
         {statusLabel(data.status)}
       </span>
+      {canPreview && (
+        <a
+          href={data.previewUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium"
+        >
+          预览页面 ↗
+        </a>
+      )}
       {(data.status === 'completed' || data.status === 'failed') && !data.confirmed && (
         <button
           onClick={(e) => { e.stopPropagation(); data.onConfirm?.(); }}
@@ -195,7 +208,7 @@ function TaskUserInputNode({ data }: any) {
   );
 }
 
-/* 工作流节点（web-dev / end） */
+/* 工作流节点（web-dev / end）—— running 时有脉冲特效（参考工作流 tab 画布） */
 function TaskWorkflowNode({ data }: any) {
   const isEnd = data.id === '__end__';
   const style = {
@@ -207,10 +220,14 @@ function TaskWorkflowNode({ data }: any) {
     padding: '8px 12px',
     minWidth: 130,
     textAlign: 'center' as const,
-    boxShadow: data.status === 'running' ? '0 0 0 3px rgba(59,130,246,0.25)' : undefined,
+    boxShadow: data.status === 'running' ? '0 0 0 4px rgba(59,130,246,0.3)' : undefined,
+    transition: 'all 0.3s ease',
   };
   return (
-    <div style={style}>
+    <div
+      style={style}
+      className={`${data.status === 'running' ? 'node-running-active' : ''}`}
+    >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
       <div className={`font-semibold text-xs ${isEnd ? 'text-green-700' : 'text-slate-800'}`}>
         {isEnd ? 'end' : data.id}
@@ -615,6 +632,18 @@ function addTaskNodes(
   const taskNodeStatus = task.status;
   const wfNodeStatus = task.status === 'running' ? (executeNodeStatus || '') : task.status === 'completed' ? 'completed' : '';
 
+  // 产物预览 URL：completed 且有产物时可用（与工作流 tab 历史记录一致）
+  let previewUrl: string | null = null;
+  if (task.status === 'completed' && task.runId && task.activeRun?.result) {
+    const projectDir = task.activeRun.workflow_path
+      ? task.activeRun.workflow_path.substring(0, task.activeRun.workflow_path.lastIndexOf('/'))
+      : '';
+    const artifacts = extractArtifacts(task.activeRun.result, projectDir);
+    if (artifacts.length > 0) {
+      previewUrl = getArtifactPreviewUrl(task.runId, artifacts[0].path);
+    }
+  }
+
   nodes.push({
     id: `${task.id}__header`,
     type: 'taskHeader',
@@ -623,6 +652,7 @@ function addTaskNodes(
       name: task.name,
       status: taskNodeStatus,
       confirmed: task.confirmed,
+      previewUrl,
       onConfirm: handlers.onConfirm,
     },
   });

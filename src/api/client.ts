@@ -128,6 +128,9 @@ export const confirmWorkflowRun = (runId: string) =>
 export const deleteWorkflowRun = (runId: string) =>
   api.delete(`/workflow/runs/${runId}`).then(r => r.data);
 
+export const deleteWorkflow = (workflowId: string) =>
+  api.delete(`/workflows/${workflowId}`).then(r => r.data);
+
 export const getQueueStatus = () =>
   api.get('/workflow/queue').then(r => r.data);
 

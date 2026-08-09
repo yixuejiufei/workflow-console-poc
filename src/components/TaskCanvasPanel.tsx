@@ -188,6 +188,27 @@ function TaskBeginNode({ data }: any) {
 
 /* 用户需求输入节点 */
 function TaskUserInputNode({ data }: any) {
+  // 本地 state + 防抖提交：打字只更新本地（不触发父组件 setTasks → 不重建 React Flow
+  // nodes → 不失焦）；300ms 防抖后提交全局（持久化/运行按钮仍正常工作）
+  const [val, setVal] = useState<string>(data.requirement || '');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 外部值变化（引擎恢复/任务加载/防抖提交回写）时同步本地
+  useEffect(() => {
+    setVal(data.requirement || '');
+  }, [data.requirement]);
+
+  // 卸载时清理定时器
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const handleChange = (v: string) => {
+    setVal(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => data.onRequirementChange?.(v), 300);
+  };
+
   return (
     <div
       style={{
@@ -204,8 +225,8 @@ function TaskUserInputNode({ data }: any) {
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
       <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1">userinput</div>
       <textarea
-        value={data.requirement || ''}
-        onChange={(e) => { e.stopPropagation(); data.onRequirementChange?.(e.target.value); }}
+        value={val}
+        onChange={(e) => { e.stopPropagation(); handleChange(e.target.value); }}
         placeholder="输入需求..."
         rows={2}
         className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-amber-500 resize-none bg-white"

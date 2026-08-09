@@ -63,9 +63,47 @@ function formatTime(ts?: string): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Token 图标：艺术字体大写 T（衬线体 + 圆底，形似 token 标志） */
+function TokenIcon() {
+  return (
+    <span
+      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-indigo-600 font-serif font-black italic"
+      style={{ fontSize: 9, lineHeight: 1 }}
+      title="Token 消耗"
+    >
+      T
+    </span>
+  );
+}
+
+/** 工具调用图标：扳手 */
+function ToolIcon() {
+  return (
+    <span className="inline-flex items-center justify-center" title="工具调用次数">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      </svg>
+    </span>
+  );
+}
+
+/** 从 run.inputs 提取 userinput 展示文本（取所有字符串值，非字符串跳过） */
+function extractInputText(inputs?: Record<string, unknown>): string {
+  if (!inputs) return '';
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(inputs)) {
+    if (typeof v === 'string' && v.trim()) {
+      lines.push(v.trim());
+    }
+  }
+  return lines.join('\n');
+}
+
 /** 节点执行状态（参考 WorkflowCanvas 状态逻辑） */
 function nodeStatus(run: WorkflowRun | null, nodeId: string): string {
   if (!run) return 'pending';
+  // end 虚拟节点：completed 的 run 视为正常结束
+  if (nodeId === '__end__' && run.status === 'completed') return 'completed';
   const executed = run.executed_nodes || [];
   if (run.status === 'completed') {
     return (executed.includes(nodeId) || run.current_node === nodeId) ? 'completed' : 'pending';
@@ -142,12 +180,24 @@ function ReviewBeginNode() {
   );
 }
 
-/** userinput 输入标记 */
-function ReviewUserInputNode() {
+/** userinput 输入标记（只读展示用户输入内容） */
+function ReviewUserInputNode({ data }: any) {
+  const content: string = data?.content || '';
   return (
-    <div style={{ background: '#ffffff', borderColor: '#f59e0b', borderWidth: 2, borderStyle: 'solid', borderRadius: 8, padding: '8px 12px', minWidth: 130, textAlign: 'center' }} className="shadow-sm">
+    <div style={{ background: '#fffbeb', borderColor: '#f59e0b', borderWidth: 2, borderStyle: 'solid', borderRadius: 8, padding: '8px 10px', minWidth: 200, maxWidth: 260, textAlign: 'center' }} className="shadow-sm">
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      <div className="text-[10px] font-bold text-amber-600 tracking-wider">userinput</div>
+      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1">userinput</div>
+      {content ? (
+        <textarea
+          readOnly
+          value={content}
+          rows={Math.min(Math.max(content.split('\n').length, 2), 6)}
+          className="w-full text-[10px] text-slate-700 bg-white border border-amber-200 rounded px-2 py-1 resize-none focus:outline-none cursor-default nodrag nopan"
+          style={{ lineHeight: 1.5 }}
+        />
+      ) : (
+        <div className="text-[9px] text-slate-400">（无输入内容）</div>
+      )}
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
     </div>
   );
@@ -176,7 +226,7 @@ function ReviewCanvas({ workflow, run }: { workflow: WorkflowDef | null; run: Wo
     const baseY = startNode?.position?.y ?? 200;
     return [
       { id: BEGIN_ID, type: 'begin', position: { x: 20, y: baseY }, data: {} },
-      { id: USERINPUT_ID, type: 'userinput', position: { x: 180, y: baseY }, data: {} },
+      { id: USERINPUT_ID, type: 'userinput', position: { x: 180, y: baseY }, data: { content: extractInputText(run?.inputs as Record<string, unknown>) } },
       ...shifted,
     ];
   }, [workflow, run]);
@@ -312,7 +362,14 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                     <span title="耗时">⏱ {formatDuration(m?.duration_ms)}</span>
-                    <span title="Token 消耗">🔤 {m?.tokens_in !== undefined || m?.tokens_out !== undefined ? `${(m?.tokens_in || 0) + (m?.tokens_out || 0)}` : '—'}</span>
+                    <span className="inline-flex items-center gap-1" title="Token 消耗">
+                      <TokenIcon />
+                      {m?.tokens_in !== undefined || m?.tokens_out !== undefined ? `${(m?.tokens_in || 0) + (m?.tokens_out || 0)}` : '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1" title="工具调用次数">
+                      <ToolIcon />
+                      {m?.tool_calls !== undefined ? m.tool_calls : '—'}
+                    </span>
                     {m?.llm_calls !== undefined && <span title="LLM 调用次数">🤖 {m.llm_calls} 次</span>}
                   </div>
                 </div>

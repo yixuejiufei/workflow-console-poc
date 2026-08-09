@@ -35,6 +35,8 @@ export interface NodeMetrics {
   tokens_in?: number;
   tokens_out?: number;
   llm_calls?: number;
+  // issue-051 契约：工具调用次数（引擎实现前为 undefined）
+  tool_calls?: number;
 }
 
 export interface NodeConfigResponse {

@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.38**：任务测评页签 4 项优化——①userinput 节点只读展示用户输入内容（textarea readOnly，内容来自 run.inputs 字符串字段）②end 虚拟节点在 run completed 时显示「已完成」（不再显示「未执行」）③Token 消耗图标 🔤 → 艺术字体大写 T（衬线体 + 圆底）④新增「工具调用次数」列（扳手图标，读引擎 `node_metrics.tool_calls` 契约——issue-051 已提交，引擎实现前显示 —）
 - **v0.1.37**：新增顶级页签【任务测评】（任务画布后、工作流前）——三栏布局：左侧所有任务列表（listWorkflowRuns，run_id/状态/时间）；中间画布加载选中任务，按执行结果渲染每个节点状态（completed/running/failed/pending 着色 + 脉冲动画）；右侧详情节点时间线（执行顺序、每节点完成情况，耗时/Token/LLM 调用次数读引擎 `node_metrics` 契约——issue-048 已提交，引擎实现前显示 —）；画布 fitView 复用两段式逻辑（可见 + measure 后平滑过渡）；节点 metrics 契约字段已加入 client.ts 类型
 - **v0.1.36**：修复浏览器误弹「要保存密码吗？」——根因：SettingsPanel 的 LiteLLM Master Key 输入框是 `type="password"`，keep-alive 常驻 DOM 使 Chrome 密码管理器误判整个页面为登录表单，点击任意按钮（工作流保存等）即弹保存密码提示。修复：密钥框改 `type="text"` + CSS 掩码（`-webkit-text-security: disc` 保持圆点显示）+ `autoComplete="off"`，浏览器不再识别为密码字段
 - **v0.1.35**：【工作流】userinput 节点三态高度自适应（对齐任务画布实现）——未聚焦时 textarea 高度与 begin 节点精确等高（DEFAULT_H 布局单位）；聚焦后 auto-resize 随内容增长，最高画布高度 1/3，超出滚动条；失焦恢复默认高度 + overflow hidden；本地 state + 防抖 + nodrag nopan 保留

@@ -200,7 +200,8 @@ function TaskUserInputNode({ data }: any) {
   // 未聚焦高度：使节点与 begin 等高。实测（布局单位）：begin 节点 offsetH 70，userinput 非 textarea
   // 部分约 47（padding16+标题15+mb4+边框），textarea 取 23 时节点总高≈70 与 begin 一致
   const DEFAULT_H = 23;
-  const MAX_H = Math.max(80, Math.floor(canvasH * 2 / 3));
+  // 聚焦最大高度 = 画布高度 1/3（用户要求），超出滚动条
+  const MAX_H = Math.max(80, Math.floor(canvasH / 3));
 
   const autoResize = useCallback(() => {
     const el = taRef.current;
@@ -268,7 +269,7 @@ function TaskUserInputNode({ data }: any) {
           maxHeight: MAX_H + 'px',
           overflowY: focused ? 'auto' : 'hidden',
         }}
-        className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-amber-500 resize-none bg-white"
+        className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-amber-500 resize-none bg-white nodrag nopan"
       />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
     </div>

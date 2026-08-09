@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.28**：userinput 输入框优化——①聚焦最大高度调整为画布高度 1/3（原 2/3），超出滚动条；②textarea 加 nodrag nopan class，鼠标可框选输入框内文字编辑（此前 React Flow 画布平移拦截 mousedown 拖拽导致无法框选）
 - **v0.1.27**：userinput 输入框高度自适应——未聚焦时高度与 begin 节点一致（38px 输入框，节点等高）；聚焦后随文字内容自适应增长，最高为画布高度 2/3，超出显示滚动条；失焦后恢复默认高度
 - **v0.1.26**：userinput 输入框打字失焦修复——TaskUserInputNode 改为本地 state + 300ms 防抖提交：打字只更新节点内部 state（不触发父组件 setTasks → 不重建 React Flow nodes → 不失焦），防抖后提交全局（持久化/运行按钮照常）；此前受控 textarea 每次击键回写全局导致 React Flow 节点 data 全量重建、偶发失焦
 - **v0.1.25**：未运行任务刷新不丢（localStorage 持久化）——无 runId 的 pending 任务存入 localStorage，刷新/重开页面自动恢复，与引擎恢复的 run 合并展示；运行/删除/确认后自动从 localStorage 移除

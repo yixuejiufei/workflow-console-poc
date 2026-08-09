@@ -33,7 +33,7 @@ type TopTab = 'tasks' | 'workflow' | 'agent' | 'settings';
 type DrawerContent = 'history' | 'events' | null;
 
 function App() {
-  const [topTab, setTopTab] = useState<TopTab>('workflow');
+  const [topTab, setTopTab] = useState<TopTab>('tasks');
   const [yamlText, setYamlText] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowDef | null>(null);
@@ -226,7 +226,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.21 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.22 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">

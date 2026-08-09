@@ -259,6 +259,9 @@ const nodeTypes = {
 
 const TASK_ROW_H = 175;
 
+/** localStorage 键：未运行任务（无 runId 的 pending）持久化，刷新不丢 */
+const LS_UNSTARTED_KEY = 'workflow-console-unstarted-tasks';
+
 export default function TaskCanvasPanel() {
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [tasks, setTasks] = useState<TaskInstance[]>([]);
@@ -267,7 +270,7 @@ export default function TaskCanvasPanel() {
   const [pendingDelete, setPendingDelete] = useState<TaskInstance | null>(null);
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
-  // 加载可选工作流 & 恢复活跃任务
+  // 加载可选工作流 & 恢复活跃任务（引擎 run + localStorage 未运行任务合并）
   useEffect(() => {
     Promise.all([
       listWorkflows(),
@@ -296,11 +299,35 @@ export default function TaskCanvasPanel() {
           createdAt: run.started_at ? new Date(run.started_at).getTime() : now + restored.length,
         });
       }
-      if (restored.length > 0) {
-        setTasks(restored);
-      }
+      // 从 localStorage 恢复未运行任务（刷新不丢）
+      let localUnstarted: TaskInstance[] = [];
+      try {
+        const raw = localStorage.getItem(LS_UNSTARTED_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) localUnstarted = parsed;
+        }
+      } catch { /* localStorage 异常忽略 */ }
+      loadedRef.current = true;
+      setTasks([...localUnstarted, ...restored]);
     }).catch(() => {});
   }, []);
+
+  // 未运行任务（无 runId 的 pending）持久化到 localStorage，刷新不丢
+  // 注意：loadedRef 标记加载完成前不写 localStorage——避免 StrictMode 双执行 effect
+  // 时 tasks=[] 把 localStorage 中已存的未运行任务清掉
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    const unstarted = tasks.filter(t => !t.runId && t.status === 'pending');
+    try {
+      if (unstarted.length === 0) {
+        localStorage.removeItem(LS_UNSTARTED_KEY);
+      } else {
+        localStorage.setItem(LS_UNSTARTED_KEY, JSON.stringify(unstarted));
+      }
+    } catch { /* localStorage 异常忽略 */ }
+  }, [tasks]);
 
   // 新建任务
   const handleAddTask = useCallback((wf: WorkflowSummary) => {

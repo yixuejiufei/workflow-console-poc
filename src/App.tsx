@@ -226,7 +226,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.23 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.24 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -260,10 +260,11 @@ function App() {
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
-        {topTab === 'tasks' && (
+        {/* keep-alive：所有 tab 常驻渲染，非活动 tab 用 hidden 隐藏（组件不卸载，state 保留） */}
+        <div className={`${topTab === 'tasks' ? 'flex-1 flex flex-col min-w-0' : 'hidden'}`}>
           <TaskCanvasPanel />
-        )}
-        {topTab === 'workflow' && (
+        </div>
+        <div className={`${topTab === 'workflow' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
           <>
             {/* 左侧：工作流列表 + YAML 编辑器（Agent 页签风格） */}
             <div className="w-80 shrink-0 border-r border-slate-200">
@@ -441,25 +442,25 @@ function App() {
                     </div>
                   )}
                   {drawer === 'events' && (
-                    <EventLog events={events} runId={activeRun?.run_id} />
+                      <EventLog events={events} runId={activeRun?.run_id} />
+                    )}
+                  </div>
+                  </div>
                   )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+                  </>
+                  </div>
 
-        {topTab === 'agent' && (
-          <AgentConfigPanel
-            runId={activeRun?.run_id || null}
-            projectDir={projectDir}
-          />
-        )}
+                  <div className={`${topTab === 'agent' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
+                  <AgentConfigPanel
+                  runId={activeRun?.run_id || null}
+                  projectDir={projectDir}
+                  />
+                  </div>
 
-        {topTab === 'settings' && (
-          <SettingsPanel />
-        )}
-      </main>
+                  <div className={`${topTab === 'settings' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
+                  <SettingsPanel />
+                  </div>
+                  </main>
     </div>
   );
 }

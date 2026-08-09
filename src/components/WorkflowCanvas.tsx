@@ -270,6 +270,8 @@ export default function WorkflowCanvas({
 
   // React Flow 实例（onInit 时注入，避免额外 Provider）
   const rfRef = useRef<any>(null);
+  // 画布容器（keep-alive 下 hidden tab 不可见，用于可见性检测）
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 默认渲染：节点尺寸测量完成后手动 fitView —— 修复 fitView prop 在自定义节点
   // 尺寸未测量时执行导致的不居中/过小问题；同一工作流只 fit 一次，不覆盖用户拖拽
@@ -282,23 +284,31 @@ export default function WorkflowCanvas({
     if (fittedKeyRef.current === key) return;
     let tries = 0;
     const iv = window.setInterval(() => {
-      tries++;
       const inst = rfRef.current;
       if (!inst) {
         // onInit 尚未触发（最多等 3s）
-        if (tries > 60) window.clearInterval(iv);
+        if (++tries > 60) window.clearInterval(iv);
         return;
       }
+      // keep-alive：hidden tab 不可见（rect 宽 0），节点无法 measure →
+      // 不计时、不强制 fit（避免 hidden 期间空转 3s 后以错误尺寸 fit 污染）
+      const el = containerRef.current;
+      if (el && el.getBoundingClientRect().width === 0) {
+        tries = 0;
+        return;
+      }
+      tries++;
       const storeNodes = inst.getNodes?.() || [];
       const allMeasured =
         storeNodes.length > 0 &&
         storeNodes.every((n: any) => n.measured?.width && n.measured?.height);
-      if (allMeasured || tries > 60) {
+      if (allMeasured || tries > 120) {
         window.clearInterval(iv);
         fittedKeyRef.current = key;
         requestAnimationFrame(() => {
-          // padding 0.08（比任务画布 0.12 更紧凑 → 节点更大）+ maxZoom 1.5
-          inst.fitView({ padding: 0.08, maxZoom: 1.5 });
+          // padding 0.08（比任务画布 0.12 更紧凑 → 节点更大）+ maxZoom 1.5；
+          // duration 300ms 平滑过渡（避免 scale(1)→fit 的瞬跳）
+          inst.fitView({ padding: 0.08, maxZoom: 1.5, duration: 300 });
         });
       }
     }, 50);
@@ -311,7 +321,7 @@ export default function WorkflowCanvas({
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   return (
-    <div className="w-full h-full bg-slate-50">
+    <div ref={containerRef} className="w-full h-full bg-slate-50">
       <ReactFlow
         nodes={nodes}
         edges={edges}

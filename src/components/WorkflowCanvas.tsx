@@ -283,6 +283,7 @@ export default function WorkflowCanvas({
     const key = workflow?.id || 'none';
     if (fittedKeyRef.current === key) return;
     let tries = 0;
+    let fittedOnce = false; // 可见瞬间已触发首次 fit（立即平滑过渡，不等 measure）
     const iv = window.setInterval(() => {
       const inst = rfRef.current;
       if (!inst) {
@@ -302,12 +303,19 @@ export default function WorkflowCanvas({
       const allMeasured =
         storeNodes.length > 0 &&
         storeNodes.every((n: any) => n.measured?.width && n.measured?.height);
-      if (allMeasured || tries > 120) {
+      // ① 可见瞬间立即 fit（未 measure 用近似尺寸）→ 进入 tab 直接平滑过渡，
+      //    不等 measure 完成的静止等待
+      if (!fittedOnce) {
+        fittedOnce = true;
+        requestAnimationFrame(() => {
+          inst.fitView({ padding: 0.08, maxZoom: 1.5, duration: 300 });
+        });
+      }
+      // ② measure 完成后校正（从近似位置平滑微调到精确居中）
+      if (allMeasured) {
         window.clearInterval(iv);
         fittedKeyRef.current = key;
         requestAnimationFrame(() => {
-          // padding 0.08（比任务画布 0.12 更紧凑 → 节点更大）+ maxZoom 1.5；
-          // duration 300ms 平滑过渡（避免 scale(1)→fit 的瞬跳）
           inst.fitView({ padding: 0.08, maxZoom: 1.5, duration: 300 });
         });
       }

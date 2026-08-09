@@ -264,6 +264,7 @@ export default function TaskCanvasPanel() {
   const [tasks, setTasks] = useState<TaskInstance[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [organized, setOrganized] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<TaskInstance | null>(null);
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   // 加载可选工作流 & 恢复活跃任务
@@ -354,19 +355,26 @@ export default function TaskCanvasPanel() {
     }
   }, [tasks, updateTask]);
 
-  // 删除任务（有 run_id → 调引擎 DELETE 端点；无 run_id → 直接本地移除）
+  // 删除任务（先弹出自定义确认弹窗，不用浏览器原生 confirm）
   const handleDeleteTask = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-    if (!window.confirm(`确定删除任务「${task.name}」吗？删除后不可恢复。`)) return;
+    setPendingDelete(task);
+  }, [tasks]);
+
+  // 确认删除（有 run_id → 调引擎 DELETE 端点；无 run_id → 直接本地移除）
+  const confirmDeleteTask = useCallback(() => {
+    if (!pendingDelete) return;
+    const task = pendingDelete;
     // 本地立即移除（无论引擎调用是否成功，保证 UI 响应）
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+    setTasks(prev => prev.filter(t => t.id !== task.id));
+    setPendingDelete(null);
     if (task.runId) {
       deleteWorkflowRun(task.runId).catch((e: any) => {
         console.warn('引擎删除 run 记录失败（issue-046 端点未就绪时属预期）:', e?.message || e);
       });
     }
-  }, [tasks]);
+  }, [pendingDelete]);
 
   // 轮询活跃任务
   useEffect(() => {
@@ -628,6 +636,32 @@ export default function TaskCanvasPanel() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认弹窗（自定义，不用浏览器原生 confirm） */}
+      {pendingDelete && (
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-30" onClick={() => setPendingDelete(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-5 w-80 border border-slate-200" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">删除任务</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              确定删除任务 <span className="font-mono font-semibold text-slate-700">{pendingDelete.name}</span> 吗？删除后不可恢复。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="text-xs px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteTask}
+                className="text-xs px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 font-medium"
+              >
+                确认删除
+              </button>
+            </div>
           </div>
         </div>
       )}

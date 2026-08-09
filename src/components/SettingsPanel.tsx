@@ -122,10 +122,14 @@ export default function SettingsPanel() {
 
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">LiteLLM Master Key</label>
+          {/* 不用 type="password"：keep-alive 常驻 DOM 会让浏览器密码管理器误判
+              整个页面为登录表单，点击任意按钮弹「要保存密码吗？」；CSS 掩码保持圆点显示 */}
           <input
-            type="password"
+            type="text"
             value={settings.litellm_master_key || ''}
             onChange={(e) => updateField('litellm_master_key', e.target.value)}
+            autoComplete="off"
+            style={{ WebkitTextSecurity: 'disc' }}
             className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
           />
         </div>

@@ -6,27 +6,12 @@ interface Props {
   selected: WorkflowSummary | null;
   onSelect: (wf: WorkflowSummary) => void;
   onCreated?: () => void;
-  // YAML 编辑器（Agent 页签风格，放在左侧列表下方）
-  yamlText: string;
-  onYamlChange: (value: string) => void;
-  onParse: () => void;
-  parseError: string | null;
-  onSave: () => void;
-  saving: boolean;
-  savedMsg: string | null;
 }
 
 export default function WorkflowListPanel({
   selected,
   onSelect,
   onCreated,
-  yamlText,
-  onYamlChange,
-  onParse,
-  parseError,
-  onSave,
-  saving,
-  savedMsg,
 }: Props) {
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -162,52 +147,6 @@ export default function WorkflowListPanel({
         </div>
 
         {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded m-2">{error}</div>}
-
-        {/* 选中工作流的 YAML 编辑器（Agent 页签风格） */}
-        {selected && (
-          <div className="border-t border-slate-200 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-slate-700">{selected.name} 配置</h3>
-              <span className="text-[9px] text-slate-400 font-mono">{selected.path}</span>
-            </div>
-
-            <div className="border border-slate-200 rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[11px] font-semibold text-slate-700">Workflow YAML</h4>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={onParse}
-                    className="text-[10px] px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
-                  >
-                    解析图
-                  </button>
-                  <button
-                    onClick={onSave}
-                    disabled={saving}
-                    className="text-[10px] px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white rounded"
-                  >
-                    {saving ? '保存中...' : '保存'}
-                  </button>
-                </div>
-              </div>
-              <textarea
-                value={yamlText}
-                onChange={(e) => onYamlChange(e.target.value)}
-                className="w-full h-56 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                placeholder="# workflow 配置..."
-                spellCheck={false}
-              />
-              {parseError && (
-                <div className="mt-2 text-[10px] text-red-600 bg-red-50 p-2 rounded">{parseError}</div>
-              )}
-              {savedMsg && (
-                <div className={`mt-2 text-[10px] ${savedMsg.includes('失败') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'} p-2 rounded`}>
-                  {savedMsg}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import EventLog from './components/EventLog';
 import NodeEditModal from './components/NodeEditModal';
 import AgentConfigPanel from './components/AgentConfigPanel';
 import WorkflowListPanel from './components/WorkflowListPanel';
+import WorkflowDetailPanel from './components/WorkflowDetailPanel';
 import TaskCanvasPanel from './components/TaskCanvasPanel';
 import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, serializeWorkflow } from './utils/yamlParser';
@@ -226,7 +227,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.28 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.29 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -266,8 +267,8 @@ function App() {
         </div>
         <div className={`${topTab === 'workflow' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
           <>
-            {/* 左侧：工作流列表 + YAML 编辑器（Agent 页签风格） */}
-            <div className="w-80 shrink-0 border-r border-slate-200">
+            {/* 左侧：工作流列表（选中加载到中间画布） */}
+            <div className="w-72 shrink-0 border-r border-slate-200">
               <WorkflowListPanel
                 selected={selectedWorkflow}
                 onSelect={(wf) => {
@@ -276,13 +277,6 @@ function App() {
                   setDrawer(null);
                   setSavedMsg(null);
                 }}
-                yamlText={yamlText}
-                onYamlChange={setYamlText}
-                onParse={() => handleParse()}
-                parseError={parseError}
-                onSave={handleSaveWorkflow}
-                saving={saving}
-                savedMsg={savedMsg}
               />
             </div>
 
@@ -384,6 +378,20 @@ function App() {
                   </div>
                 </div>
               </div>
+
+            {/* 右侧：工作流详情显示区（选中后配置信息显示在此） */}
+            <div className="w-80 shrink-0">
+              <WorkflowDetailPanel
+                selected={selectedWorkflow}
+                yamlText={yamlText}
+                onYamlChange={setYamlText}
+                onParse={() => handleParse()}
+                parseError={parseError}
+                onSave={handleSaveWorkflow}
+                saving={saving}
+                savedMsg={savedMsg}
+              />
+            </div>
 
             {/* 右侧抽屉（仅历史/事件） */}
             {drawer && (

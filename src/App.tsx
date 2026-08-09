@@ -7,6 +7,7 @@ import AgentConfigPanel from './components/AgentConfigPanel';
 import WorkflowListPanel from './components/WorkflowListPanel';
 import WorkflowDetailPanel from './components/WorkflowDetailPanel';
 import TaskCanvasPanel from './components/TaskCanvasPanel';
+import TaskReviewPanel from './components/TaskReviewPanel';
 import { useWorkflowEvents } from './hooks/useWorkflowEvents';
 import { parseWorkflowYaml, serializeWorkflow } from './utils/yamlParser';
 import type { WorkflowDef, WorkflowNode } from './types/workflow';
@@ -30,7 +31,7 @@ function requirementFromInputs(inputs: Record<string, any> | undefined): string 
   try { return JSON.stringify(inputs); } catch { return ''; }
 }
 
-type TopTab = 'tasks' | 'workflow' | 'agent' | 'settings';
+type TopTab = 'tasks' | 'review' | 'workflow' | 'agent' | 'settings';
 type DrawerContent = 'history' | 'events' | null;
 
 function App() {
@@ -242,13 +243,14 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.36 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.37 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
           {(
             [
               { key: 'tasks', label: '任务画布' },
+              { key: 'review', label: '任务测评' },
               { key: 'workflow', label: '工作流' },
               { key: 'agent', label: 'Agent' },
               { key: 'settings', label: '设置' },
@@ -279,6 +281,9 @@ function App() {
         {/* keep-alive：所有 tab 常驻渲染，非活动 tab 用 hidden 隐藏（组件不卸载，state 保留） */}
         <div className={`${topTab === 'tasks' ? 'flex-1 flex flex-col min-w-0' : 'hidden'}`}>
           <TaskCanvasPanel />
+        </div>
+        <div className={`${topTab === 'review' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
+          <TaskReviewPanel />
         </div>
         <div className={`${topTab === 'workflow' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
           <>

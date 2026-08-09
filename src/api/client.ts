@@ -23,6 +23,18 @@ export interface WorkflowRun {
   started_at?: string;
   finished_at?: string;
   confirmed?: boolean;
+  // issue-048 契约：节点级 metrics（引擎实现前为空）
+  node_metrics?: Record<string, NodeMetrics>;
+}
+
+export interface NodeMetrics {
+  started_at?: number;
+  ended_at?: number;
+  duration_ms?: number;
+  status?: string;
+  tokens_in?: number;
+  tokens_out?: number;
+  llm_calls?: number;
 }
 
 export interface NodeConfigResponse {

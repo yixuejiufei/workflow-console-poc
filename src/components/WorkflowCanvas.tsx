@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -90,9 +90,8 @@ function CustomNode({ data }: any) {
   );
 }
 
-/** BEGIN 节点：运行工作流按钮（参考 end 节点样式，宽度对齐任务画布 TaskBeginNode） */
-function BeginNode({ data }: any) {
-  const disabled = !data.requirement?.trim() || data.running;
+/** BEGIN 节点：仅流程起点标记（工作流画布仅可编辑、不可运行，无运行按钮） */
+function BeginNode() {
   return (
     <div
       style={{
@@ -108,29 +107,37 @@ function BeginNode({ data }: any) {
       className="shadow-sm"
     >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      <div className="text-[10px] font-bold text-blue-600 tracking-wider mb-1.5">begin</div>
-      <button
-        onClick={(e) => { e.stopPropagation(); data.onRun?.(); }}
-        disabled={disabled}
-        className={`flex items-center justify-center gap-1 text-xs px-3 py-1.5 rounded font-medium w-full ${
-          disabled
-            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700 text-white'
-        }`}
-      >
-        {data.running ? (
-          <><span className="w-2 h-2 bg-blue-300 rounded-full animate-pulse" /> 运行中...</>
-        ) : (
-          <><span>▶</span> 运行工作流</>
-        )}
-      </button>
+      <div className="text-[10px] font-bold text-blue-600 tracking-wider">begin</div>
+      <div className="text-[10px] text-slate-400 mt-0.5">起点</div>
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
     </div>
   );
 }
 
-/** 用户需求参数输入节点（宽度对齐任务画布 TaskUserInputNode） */
+/** 用户需求参数输入节点（宽度对齐任务画布 TaskUserInputNode）
+ *  本地 state + 300ms 防抖提交：打字只更新节点内部 state（不触发父组件 →
+ *  不重建 React Flow nodes → 不打断 IME 中文组合输入 → 不失焦）；
+ *  防抖后提交全局（模板保存/任务画布预填仍正常工作） */
 function UserInputNode({ data }: any) {
+  const [val, setVal] = useState<string>(data.requirement || '');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 外部值变化（切换工作流加载模板/防抖提交回写）时同步本地
+  useEffect(() => {
+    setVal(data.requirement || '');
+  }, [data.requirement]);
+
+  // 卸载时清理定时器
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const handleChange = (v: string) => {
+    setVal(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => data.onRequirementChange?.(v), 300);
+  };
+
   return (
     <div
       style={{
@@ -147,11 +154,11 @@ function UserInputNode({ data }: any) {
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
       <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1.5">userinput</div>
       <textarea
-        value={data.requirement || ''}
-        onChange={(e) => { e.stopPropagation(); data.onRequirementChange?.(e.target.value); }}
+        value={val}
+        onChange={(e) => { e.stopPropagation(); handleChange(e.target.value); }}
         placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
         rows={2}
-        className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-amber-500 resize-none bg-white"
+        className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-amber-500 resize-none bg-white nodrag nopan"
       />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
     </div>
@@ -236,7 +243,7 @@ export default function WorkflowCanvas({
       id: BEGIN_ID,
       type: 'begin',
       position: { x: 20, y: baseY },
-      data: { requirement: runRequirement, running, onRun },
+      data: {},
     };
     const userInputNode: Node = {
       id: USERINPUT_ID,

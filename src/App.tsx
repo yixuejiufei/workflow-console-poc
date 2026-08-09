@@ -94,7 +94,7 @@ function App() {
     loadHistory();
   }, [loadHistory]);
 
-  // 选中工作流时加载文件
+  // 选中工作流时加载文件 + userinput 模板
   useEffect(() => {
     if (!selectedWorkflow) return;
     readProjectFile(selectedWorkflow.path)
@@ -103,6 +103,11 @@ function App() {
         handleParse(f.content);
       })
       .catch((err) => setParseError(err?.response?.data?.detail || err.message));
+    // 加载该工作流的 userinput 模板（任务画布创建任务时预填）
+    try {
+      const tpl = localStorage.getItem(`workflow-console-userinput-template-${selectedWorkflow.id}`);
+      setRunRequirement(tpl ?? '');
+    } catch { /* localStorage 异常忽略 */ }
     // 若当前 activeRun 属于其他工作流（workflow_path 不匹配），清空避免节点配置读取串台
     setActiveRun((prev) => {
       if (prev?.workflow_path && selectedWorkflow.abs_path
@@ -113,6 +118,16 @@ function App() {
       return prev;
     });
   }, [selectedWorkflow?.path]);
+
+  // userinput 内容变化：更新 state + 作为模板保存（按工作流 id，防抖由 UserInputNode 完成）
+  const handleRequirementChange = useCallback((v: string) => {
+    setRunRequirement(v);
+    if (selectedWorkflow) {
+      try {
+        localStorage.setItem(`workflow-console-userinput-template-${selectedWorkflow.id}`, v);
+      } catch { /* localStorage 异常忽略 */ }
+    }
+  }, [selectedWorkflow?.id]);
 
   // activeRun 变化时加载该 run 真实 workflow 配置来渲染画布
   useEffect(() => {
@@ -227,7 +242,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.33 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.34 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -295,7 +310,7 @@ function App() {
                       activeRun={activeRun}
                       onNodeClick={(nodeId) => setSelectedNode(nodeId)}
                       runRequirement={runRequirement}
-                      onRequirementChange={setRunRequirement}
+                      onRequirementChange={handleRequirementChange}
                       onRun={handleRun}
                       running={running}
                     />

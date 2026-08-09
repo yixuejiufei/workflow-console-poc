@@ -390,8 +390,12 @@ export default function TaskCanvasPanel() {
     } catch { /* localStorage 异常忽略 */ }
   }, [tasks]);
 
-  // 新建任务
+  // 新建任务（预填该工作流的 userinput 模板，模板在工作流 tab 的 userinput 中维护）
   const handleAddTask = useCallback((wf: WorkflowSummary) => {
+    let tpl = '';
+    try {
+      tpl = localStorage.getItem(`workflow-console-userinput-template-${wf.id}`) || '';
+    } catch { /* localStorage 异常忽略 */ }
     const newTask: TaskInstance = {
       id: `task-${Date.now().toString(36)}`,
       name: '新任务',
@@ -399,7 +403,7 @@ export default function TaskCanvasPanel() {
       workflowName: wf.name,
       workflowPath: wf.path,
       absPath: wf.abs_path || '',
-      requirement: '',
+      requirement: tpl,
       status: 'pending',
       createdAt: Date.now(),
     };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -7,6 +7,7 @@ import {
   Handle,
   useNodesState,
   useEdgesState,
+  useStore,
   Position,
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
@@ -90,7 +91,8 @@ function CustomNode({ data }: any) {
   );
 }
 
-/** BEGIN 节点：仅流程起点标记（工作流画布仅可编辑、不可运行，无运行按钮） */
+/** BEGIN 节点：仅流程起点标记（工作流画布仅可编辑、不可运行，无运行按钮）
+ *  垂直 padding 经实测调整：与 userinput 未聚焦节点精确等高（offsetH≈70） */
 function BeginNode() {
   return (
     <div
@@ -100,7 +102,7 @@ function BeginNode() {
         borderWidth: 2,
         borderStyle: 'solid',
         borderRadius: 8,
-        padding: '10px 14px',
+        padding: '15px 14px',
         minWidth: 130,
         textAlign: 'center',
       }}
@@ -115,12 +117,30 @@ function BeginNode() {
 }
 
 /** 用户需求参数输入节点（宽度对齐任务画布 TaskUserInputNode）
+ *  三态高度自适应（与任务画布一致）：
+ *  - 未聚焦：textarea DEFAULT_H=23px（布局单位，节点与 begin 精确等高）
+ *  - 聚焦：auto-resize（scrollHeight 驱动），MAX_H = 画布高度 1/3，超出滚动条
+ *  - 失焦：恢复 23px + overflow hidden
  *  本地 state + 300ms 防抖提交：打字只更新节点内部 state（不触发父组件 →
- *  不重建 React Flow nodes → 不打断 IME 中文组合输入 → 不失焦）；
- *  防抖后提交全局（模板保存/任务画布预填仍正常工作） */
+ *  不重建 React Flow nodes → 不打断 IME 中文组合输入 → 不失焦） */
 function UserInputNode({ data }: any) {
   const [val, setVal] = useState<string>(data.requirement || '');
+  const [focused, setFocused] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // React Flow 容器高度（画布高度）——聚焦最大高度 = 画布 1/3
+  const canvasH = useStore(s => s.height) || 600;
+  const DEFAULT_H = 23;
+  const MAX_H = Math.max(80, Math.floor(canvasH / 3));
+
+  const autoResize = useCallback(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const target = Math.min(el.scrollHeight, MAX_H);
+    el.style.height = target + 'px';
+    el.style.overflowY = el.scrollHeight > MAX_H ? 'auto' : 'hidden';
+  }, [MAX_H]);
 
   // 外部值变化（切换工作流加载模板/防抖提交回写）时同步本地
   useEffect(() => {
@@ -132,8 +152,22 @@ function UserInputNode({ data }: any) {
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
+  const handleFocus = () => {
+    setFocused(true);
+    requestAnimationFrame(autoResize);
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    if (taRef.current) {
+      taRef.current.style.height = DEFAULT_H + 'px';
+      taRef.current.style.overflowY = 'hidden';
+    }
+  };
+
   const handleChange = (v: string) => {
     setVal(v);
+    autoResize();
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => data.onRequirementChange?.(v), 300);
   };
@@ -146,19 +180,26 @@ function UserInputNode({ data }: any) {
         borderWidth: 2,
         borderStyle: 'solid',
         borderRadius: 8,
-        padding: '10px 12px',
+        padding: '8px 10px',
         minWidth: 200,
       }}
       className="shadow-sm"
     >
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1.5">userinput</div>
+      <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1">userinput</div>
       <textarea
+        ref={taRef}
         value={val}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onChange={(e) => { e.stopPropagation(); handleChange(e.target.value); }}
         placeholder="输入需求描述，如：创建一个简单的web版本的计算器..."
-        rows={2}
-        className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-amber-500 resize-none bg-white nodrag nopan"
+        style={{
+          height: focused ? undefined : DEFAULT_H + 'px',
+          maxHeight: MAX_H + 'px',
+          overflowY: focused ? 'auto' : 'hidden',
+        }}
+        className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-amber-500 resize-none bg-white nodrag nopan"
       />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />
     </div>

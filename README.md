@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.35**：【工作流】userinput 节点三态高度自适应（对齐任务画布实现）——未聚焦时 textarea 高度与 begin 节点精确等高（DEFAULT_H 布局单位）；聚焦后 auto-resize 随内容增长，最高画布高度 1/3，超出滚动条；失焦恢复默认高度 + overflow hidden；本地 state + 防抖 + nodrag nopan 保留
 - **v0.1.34**：【工作流】画布仅编辑不可运行 + userinput 模板 + 中文失焦修复——①begin 节点移除「▶ 运行工作流」按钮，改为纯起点标记（画布仅可编辑，运行统一走【任务画布】）；②userinput 输入内容作为模板持久化（localStorage 按工作流 id），【任务画布】用该工作流创建任务时自动预填到生成任务的 userinput 输入框；③WorkflowCanvas UserInputNode 改本地 state + 300ms 防抖提交（修复输入中文时 IME 组合输入被节点重建打断导致的焦点丢失），textarea 加 nodrag nopan 可框选
 - **v0.1.33**：【工作流】画布进入 tab 立即平滑过渡——两段式 fitView：①可见瞬间立即 fit（不等节点 measure，用近似尺寸）→ 进入【工作流】tab 直接开始 300ms 平滑过渡，消除之前 ~260ms 静止等待；②measure 完成后再次 fit 校正（从近似位置平滑微调到精确居中，位移小无感）；hidden 期间不空转、不污染逻辑保留
 - **v0.1.32**：【工作流】画布缩放延迟优化——进入 tab 后不再等 3 秒才缩放：①keep-alive 下 hidden tab（非活动）画布不可见、节点无法测量尺寸，原实现 hidden 期间轮询空转 3 秒后以错误尺寸强制 fit → 改为可见性检测（画布 rect 宽 0 时不计时、不强制 fit），切到 tab 可见后节点 measure 完成立即 fitView（延迟从 ~2-3s 降到 ~0.5s）；②fitView 加 duration 300ms 平滑过渡，消除 scale(1)→fit 的瞬跳

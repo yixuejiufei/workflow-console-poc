@@ -7,6 +7,7 @@ import {
   Handle,
   useNodesState,
   useEdgesState,
+  useStore,
   Position,
   applyNodeChanges,
 } from 'reactflow';
@@ -191,7 +192,24 @@ function TaskUserInputNode({ data }: any) {
   // 本地 state + 防抖提交：打字只更新本地（不触发父组件 setTasks → 不重建 React Flow
   // nodes → 不失焦）；300ms 防抖后提交全局（持久化/运行按钮仍正常工作）
   const [val, setVal] = useState<string>(data.requirement || '');
+  const [focused, setFocused] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // React Flow 容器高度（画布高度）——maxHeight = 画布 2/3
+  const canvasH = useStore(s => s.height) || 600;
+  // 未聚焦高度：使节点与 begin 等高。实测（布局单位）：begin 节点 offsetH 70，userinput 非 textarea
+  // 部分约 47（padding16+标题15+mb4+边框），textarea 取 23 时节点总高≈70 与 begin 一致
+  const DEFAULT_H = 23;
+  const MAX_H = Math.max(80, Math.floor(canvasH * 2 / 3));
+
+  const autoResize = useCallback(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const target = Math.min(el.scrollHeight, MAX_H);
+    el.style.height = target + 'px';
+    el.style.overflowY = el.scrollHeight > MAX_H ? 'auto' : 'hidden';
+  }, [MAX_H]);
 
   // 外部值变化（引擎恢复/任务加载/防抖提交回写）时同步本地
   useEffect(() => {
@@ -203,8 +221,22 @@ function TaskUserInputNode({ data }: any) {
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
+  const handleFocus = () => {
+    setFocused(true);
+    requestAnimationFrame(autoResize);
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    if (taRef.current) {
+      taRef.current.style.height = DEFAULT_H + 'px';
+      taRef.current.style.overflowY = 'hidden';
+    }
+  };
+
   const handleChange = (v: string) => {
     setVal(v);
+    autoResize();
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => data.onRequirementChange?.(v), 300);
   };
@@ -225,10 +257,17 @@ function TaskUserInputNode({ data }: any) {
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
       <div className="text-[10px] font-bold text-amber-600 tracking-wider mb-1">userinput</div>
       <textarea
+        ref={taRef}
         value={val}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onChange={(e) => { e.stopPropagation(); handleChange(e.target.value); }}
         placeholder="输入需求..."
-        rows={2}
+        style={{
+          height: focused ? undefined : DEFAULT_H + 'px',
+          maxHeight: MAX_H + 'px',
+          overflowY: focused ? 'auto' : 'hidden',
+        }}
         className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-amber-500 resize-none bg-white"
       />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8' }} />

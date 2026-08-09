@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.27**：userinput 输入框高度自适应——未聚焦时高度与 begin 节点一致（38px 输入框，节点等高）；聚焦后随文字内容自适应增长，最高为画布高度 2/3，超出显示滚动条；失焦后恢复默认高度
 - **v0.1.26**：userinput 输入框打字失焦修复——TaskUserInputNode 改为本地 state + 300ms 防抖提交：打字只更新节点内部 state（不触发父组件 setTasks → 不重建 React Flow nodes → 不失焦），防抖后提交全局（持久化/运行按钮照常）；此前受控 textarea 每次击键回写全局导致 React Flow 节点 data 全量重建、偶发失焦
 - **v0.1.25**：未运行任务刷新不丢（localStorage 持久化）——无 runId 的 pending 任务存入 localStorage，刷新/重开页面自动恢复，与引擎恢复的 run 合并展示；运行/删除/确认后自动从 localStorage 移除
 - **v0.1.24**：任务画布切换页签不丢状态（keep-alive）——顶部 tab 切换改为所有页签常驻渲染 + 非活动隐藏（组件不卸载），新建的未运行任务切换页签再回来不再消失；此前条件渲染导致 TaskCanvasPanel 卸载、纯前端 state 丢失

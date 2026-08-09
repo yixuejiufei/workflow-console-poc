@@ -227,7 +227,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.30 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.31 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -273,6 +273,12 @@ function App() {
                 selected={selectedWorkflow}
                 onSelect={(wf) => {
                   setSelectedWorkflow(wf);
+                  // 删除选中工作流时清空画布与 YAML，避免残留已删工作流节点
+                  if (!wf) {
+                    setWorkflow(null);
+                    setYamlText('');
+                    setParseError(null);
+                  }
                   setSelectedNode(null);
                   setDrawer(null);
                   setSavedMsg(null);

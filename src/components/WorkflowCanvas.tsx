@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -90,7 +90,7 @@ function CustomNode({ data }: any) {
   );
 }
 
-/** BEGIN 节点：运行工作流按钮（参考 end 节点样式） */
+/** BEGIN 节点：运行工作流按钮（参考 end 节点样式，宽度对齐任务画布 TaskBeginNode） */
 function BeginNode({ data }: any) {
   const disabled = !data.requirement?.trim() || data.running;
   return (
@@ -102,7 +102,7 @@ function BeginNode({ data }: any) {
         borderStyle: 'solid',
         borderRadius: 8,
         padding: '10px 14px',
-        minWidth: 150,
+        minWidth: 130,
         textAlign: 'center',
       }}
       className="shadow-sm"
@@ -129,7 +129,7 @@ function BeginNode({ data }: any) {
   );
 }
 
-/** 用户需求参数输入节点 */
+/** 用户需求参数输入节点（宽度对齐任务画布 TaskUserInputNode） */
 function UserInputNode({ data }: any) {
   return (
     <div
@@ -140,7 +140,7 @@ function UserInputNode({ data }: any) {
         borderStyle: 'solid',
         borderRadius: 8,
         padding: '10px 12px',
-        minWidth: 220,
+        minWidth: 200,
       }}
       className="shadow-sm"
     >
@@ -268,6 +268,43 @@ export default function WorkflowCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  // React Flow 实例（onInit 时注入，避免额外 Provider）
+  const rfRef = useRef<any>(null);
+
+  // 默认渲染：节点尺寸测量完成后手动 fitView —— 修复 fitView prop 在自定义节点
+  // 尺寸未测量时执行导致的不居中/过小问题；同一工作流只 fit 一次，不覆盖用户拖拽
+  // 注意：useNodesState 的 nodes 在节点 measure 后引用不变（内部 store 不回写
+  // useState），所以 effect 只依赖 workflow?.id，用 interval 轮询等待 onInit 就绪
+  // + 节点 measure 完成（getNodes() 返回 store 节点含 measured）
+  const fittedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = workflow?.id || 'none';
+    if (fittedKeyRef.current === key) return;
+    let tries = 0;
+    const iv = window.setInterval(() => {
+      tries++;
+      const inst = rfRef.current;
+      if (!inst) {
+        // onInit 尚未触发（最多等 3s）
+        if (tries > 60) window.clearInterval(iv);
+        return;
+      }
+      const storeNodes = inst.getNodes?.() || [];
+      const allMeasured =
+        storeNodes.length > 0 &&
+        storeNodes.every((n: any) => n.measured?.width && n.measured?.height);
+      if (allMeasured || tries > 60) {
+        window.clearInterval(iv);
+        fittedKeyRef.current = key;
+        requestAnimationFrame(() => {
+          // padding 0.08（比任务画布 0.12 更紧凑 → 节点更大）+ maxZoom 1.5
+          inst.fitView({ padding: 0.08, maxZoom: 1.5 });
+        });
+      }
+    }, 50);
+    return () => window.clearInterval(iv);
+  }, [workflow?.id]);
+
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
@@ -284,8 +321,8 @@ export default function WorkflowCanvas({
           if (node.id === BEGIN_ID || node.id === USERINPUT_ID) return;
           onNodeClick?.(node.id);
         }}
+        onInit={(instance) => { rfRef.current = instance; }}
         nodeTypes={nodeTypes}
-        fitView
       >
         <Background gap={16} size={1} color="#cbd5e1" />
         <Controls />

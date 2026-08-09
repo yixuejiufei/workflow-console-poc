@@ -53,6 +53,20 @@ export const getNodeConfig = (runId: string, nodeId: string) =>
 export const getArtifactPreviewUrl = (runId: string, filePath: string) =>
   `/api/v1/workflow/runs/${runId}/artifact-files/${encodeURIComponent(filePath)}`;
 
+/**
+ * 探测 run 是否存在产物（v0.5.x 引擎产物走 snapshot 磁盘 + artifact-files 端点，
+ * run 详情 result/artifacts 字段为空，需探测端点判断）。
+ * 默认探测 web-dev 产物固定路径 outputs/index.html。
+ * 注意：artifact-files 端点仅支持 GET（HEAD 返回 405），探测后取消 body 读取。
+ */
+export const checkRunArtifact = (runId: string, filePath = 'outputs/index.html') =>
+  fetch(`/api/v1/workflow/runs/${runId}/artifact-files/${encodeURIComponent(filePath)}`)
+    .then(r => {
+      if (r.ok && r.body) r.body.cancel();
+      return r.ok;
+    })
+    .catch(() => false);
+
 export interface LLMSettings {
   mode: 'engine' | 'factory' | null;
   litellm_base_url: string | null;

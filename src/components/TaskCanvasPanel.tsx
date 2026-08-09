@@ -13,7 +13,7 @@ import {
 } from 'reactflow';
 import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, deleteWorkflowRun, getArtifactPreviewUrl } from '../api/client';
+import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, deleteWorkflowRun, getArtifactPreviewUrl, checkRunArtifact } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
 import { extractArtifacts } from '../utils/artifacts';
 
@@ -329,6 +329,8 @@ export default function TaskCanvasPanel() {
   const [showPicker, setShowPicker] = useState(false);
   const [organized, setOrganized] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<TaskInstance | null>(null);
+  // 产物存在性缓存（v0.5.x 引擎产物走 artifact-files 端点，需探测判断）
+  const [artifactOk, setArtifactOk] = useState<Record<string, boolean>>({});
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   // 加载可选工作流 & 恢复活跃任务（引擎 run + localStorage 未运行任务合并）
@@ -483,6 +485,18 @@ export default function TaskCanvasPanel() {
     return () => clearInterval(iv);
   }, [tasks, updateTask]);
 
+  // 产物探测：completed 且有 run_id 的任务，检查 artifact-files 端点是否存在产物
+  useEffect(() => {
+    const completed = tasks.filter(t => t.status === 'completed' && t.runId && artifactOk[t.runId] === undefined);
+    if (completed.length === 0) return;
+    let cancelled = false;
+    completed.forEach(async (t) => {
+      const ok = await checkRunArtifact(t.runId!);
+      if (!cancelled) setArtifactOk(prev => ({ ...prev, [t.runId!]: ok }));
+    });
+    return () => { cancelled = true; };
+  }, [tasks, artifactOk]);
+
   // 构建画布节点（过滤已确认 + 按需分组）
   const allNodes = useMemo<Node[]>(() => {
     const visible = tasks.filter(t => !t.confirmed).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -525,7 +539,7 @@ export default function TaskCanvasPanel() {
         y += 36;
 
         for (const task of group) {
-          addTaskNodes(nodes, task, 30, y, {
+          addTaskNodes(nodes, task, 30, y, artifactOk, {
             onRun: () => handleRunTask(task.id),
             onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
             onConfirm: () => handleConfirmTask(task.id),
@@ -539,7 +553,7 @@ export default function TaskCanvasPanel() {
       // 垂直排列（默认）
       for (let i = 0; i < visible.length; i++) {
         const task = visible[i];
-        addTaskNodes(nodes, task, 30, 20 + i * TASK_ROW_H, {
+        addTaskNodes(nodes, task, 30, 20 + i * TASK_ROW_H, artifactOk, {
           onRun: () => handleRunTask(task.id),
           onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
           onConfirm: () => handleConfirmTask(task.id),
@@ -549,7 +563,7 @@ export default function TaskCanvasPanel() {
     }
 
     return nodes;
-  }, [tasks, organized, handleRunTask, handleRequirementChange, handleConfirmTask]);
+  }, [tasks, organized, handleRunTask, handleRequirementChange, handleConfirmTask, artifactOk]);
 
   // 构建边
   const allEdges = useMemo<Edge[]>(() => {
@@ -767,6 +781,7 @@ function addTaskNodes(
   task: TaskInstance,
   ox: number,
   oy: number,
+  artifactOk: Record<string, boolean>,
   handlers: {
     onRun: () => void;
     onRequirementChange: (v: string) => void;
@@ -782,16 +797,10 @@ function addTaskNodes(
   const taskNodeStatus = task.status;
   const wfNodeStatus = task.status === 'running' ? (executeNodeStatus || '') : task.status === 'completed' ? 'completed' : '';
 
-  // 产物预览 URL：completed 且有产物时可用（与工作流 tab 历史记录一致）
+  // 产物预览 URL：completed + 产物探测通过（v0.5.x 引擎产物走 artifact-files 端点，run.result 已为空）
   let previewUrl: string | null = null;
-  if (task.status === 'completed' && task.runId && task.activeRun?.result) {
-    const projectDir = task.activeRun.workflow_path
-      ? task.activeRun.workflow_path.substring(0, task.activeRun.workflow_path.lastIndexOf('/'))
-      : '';
-    const artifacts = extractArtifacts(task.activeRun.result, projectDir);
-    if (artifacts.length > 0) {
-      previewUrl = getArtifactPreviewUrl(task.runId, artifacts[0].path);
-    }
+  if (task.status === 'completed' && task.runId && artifactOk[task.runId]) {
+    previewUrl = getArtifactPreviewUrl(task.runId, 'outputs/index.html');
   }
 
   nodes.push({

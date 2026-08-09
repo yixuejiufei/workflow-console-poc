@@ -12,7 +12,7 @@ import {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig } from '../api/client';
+import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig, checkRunArtifact, getArtifactPreviewUrl } from '../api/client';
 import type { WorkflowRun } from '../api/client';
 import { parseWorkflowYaml } from '../utils/yamlParser';
 import type { WorkflowDef } from '../types/workflow';
@@ -310,6 +310,19 @@ function ReviewCanvas({ workflow, run }: { workflow: WorkflowDef | null; run: Wo
 /* ---------- 详情时间线 ---------- */
 
 function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflow: WorkflowDef | null }) {
+  // 产物存在性探测（v0.5.x 引擎产物走 artifact-files 端点）
+  const [artifactOk, setArtifactOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (run?.run_id && run.status === 'completed') {
+      setArtifactOk(null);
+      checkRunArtifact(run.run_id).then(ok => { if (!cancelled) setArtifactOk(ok); });
+    } else {
+      setArtifactOk(null);
+    }
+    return () => { cancelled = true; };
+  }, [run?.run_id, run?.status]);
+
   if (!run) {
     return (
       <div className="h-full flex flex-col bg-white overflow-hidden border-l border-slate-200">
@@ -326,7 +339,19 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden border-l border-slate-200">
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
-        <h2 className="font-semibold text-sm text-slate-700 truncate">{run.run_id}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-sm text-slate-700 truncate">{run.run_id}</h2>
+          {artifactOk && (
+            <a
+              href={getArtifactPreviewUrl(run.run_id, 'outputs/index.html')}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium shrink-0"
+            >
+              产出预览 ↗
+            </a>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-1">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${statusBadgeClass(run.status)}`}>{statusLabel(run.status)}</span>
           <span className="text-[10px] text-slate-400">{formatTime(run.started_at)}</span>

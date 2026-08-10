@@ -96,6 +96,7 @@ export interface LLMSettings {
   mode: 'engine' | 'factory' | null;
   litellm_base_url: string | null;
   litellm_master_key: string | null;
+  litellm_virtual_key: string | null;
   langfuse_host: string | null;
   langfuse_public_key: string | null;
   langfuse_secret_key: string | null;

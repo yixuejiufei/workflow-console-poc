@@ -37,6 +37,7 @@ export default function SettingsPanel() {
         mode: settings.mode,
         litellm_base_url: settings.litellm_base_url,
         litellm_master_key: settings.litellm_master_key || undefined,
+        litellm_virtual_key: settings.litellm_virtual_key || undefined,
         default_model: settings.default_model,
       });
       setTestResult({ status: res.status, message: res.message || JSON.stringify(res) });
@@ -132,6 +133,20 @@ export default function SettingsPanel() {
             style={{ WebkitTextSecurity: 'disc' }}
             className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
           />
+          <p className="text-[10px] text-slate-400 mt-1">主密钥（未设置虚拟 key 时使用）</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">LiteLLM Virtual Key</label>
+          <input
+            type="text"
+            value={settings.litellm_virtual_key || ''}
+            onChange={(e) => updateField('litellm_virtual_key', e.target.value)}
+            autoComplete="off"
+            style={{ WebkitTextSecurity: 'disc' }}
+            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">按角色/项目分配的虚拟 key，优先于主密钥（成本拆分与限流）</p>
         </div>
 
         <div className="flex gap-2 pt-2">

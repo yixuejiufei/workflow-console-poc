@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.41**：【设置】新增「LiteLLM Virtual Key」输入框——设置页面 LLM 设置支持配置虚拟 key（按角色/项目分配，用于成本拆分与限流），引擎 LLM client 优先使用虚拟 key（issue-027 已支持）；对接引擎 issue-068（`LLMSettingsRequest` 加 `litellm_virtual_key` 字段 + `ENGINE_CONFIG_FIELDS` 白名单），引擎实现前保存/测试会忽略该字段
 - **v0.1.40**：任务测评新增「Trace 时间线」——对接引擎 issue-056 trace 回放 API（`GET /runs/{run_id}/trace`，v0.5.4+）：展示 run 完整生命周期（run.start → span → generation → tool.start/end → run.end），按事件类型着色 + 图标（LLM/工具/任务起止），显示 token 消耗、耗时、工具名、结果摘要；引擎未实现时优雅降级提示
 - **v0.1.39**：修复【任务画布】「预览页面」按钮消失 + 【任务测评】新增「产出预览」——根因：v0.5.x 引擎产物改为 snapshot 磁盘 + artifact-files 端点（run 详情 `result`/`artifacts` 为空），旧逻辑依赖 `activeRun.result` 提取产物导致按钮不显示。修复：新增 `checkRunArtifact` 探测 `artifact-files/outputs/index.html`（HEAD 200 = 有产物），任务画布 completed 任务探测通过后显示预览按钮，任务测评详情头部同步加「产出预览 ↗」按钮
 - **v0.1.38**：任务测评页签 4 项优化——①userinput 节点只读展示用户输入内容（textarea readOnly，内容来自 run.inputs 字符串字段）②end 虚拟节点在 run completed 时显示「已完成」（不再显示「未执行」）③Token 消耗图标 🔤 → 艺术字体大写 T（衬线体 + 圆底）④新增「工具调用次数」列（扳手图标，读引擎 `node_metrics.tool_calls` 契约——issue-051 已提交，引擎实现前显示 —）

@@ -12,8 +12,8 @@ import {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig, checkRunArtifact, getArtifactPreviewUrl } from '../api/client';
-import type { WorkflowRun } from '../api/client';
+import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig, checkRunArtifact, getArtifactPreviewUrl, getRunTrace } from '../api/client';
+import type { WorkflowRun, RunTrace, TraceTimelineEntry } from '../api/client';
 import { parseWorkflowYaml } from '../utils/yamlParser';
 import type { WorkflowDef } from '../types/workflow';
 
@@ -61,6 +61,13 @@ function formatTime(ts?: string): string {
   if (isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** issue-056：trace 事件 timestamp 为 Unix 秒，转为毫秒字符串供 formatTime 显示。 */
+function traceTimestamp(ts: number): string {
+  if (ts == null) return '';
+  // 秒级时间戳（< 1e12）转毫秒；已是毫秒级（>= 1e12）直接用
+  return String(ts < 1e12 ? ts * 1000 : ts);
 }
 
 /** Token 图标：艺术字体大写 T（衬线体 + 圆底，形似 token 标志） */
@@ -323,6 +330,22 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
     return () => { cancelled = true; };
   }, [run?.run_id, run?.status]);
 
+  // issue-056 契约：trace 回放时间线（run.start → span → generation → run.end）
+  const [trace, setTrace] = useState<RunTrace | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (run?.run_id) {
+      setTraceLoading(true);
+      setTrace(null);
+      getRunTrace(run.run_id)
+        .then(t => { if (!cancelled) setTrace(t); })
+        .catch(() => { if (!cancelled) setTrace(null); })
+        .finally(() => { if (!cancelled) setTraceLoading(false); });
+    }
+    return () => { cancelled = true; };
+  }, [run?.run_id]);
+
   if (!run) {
     return (
       <div className="h-full flex flex-col bg-white overflow-hidden border-l border-slate-200">
@@ -408,7 +431,80 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
               耗时 / Token 消耗需引擎节点级 metrics 支持（issue-048，引擎实现后自动填充）
             </div>
           )}
+
+          {/* issue-056 契约：完整 trace 时间线（run.start → span → generation → run.end） */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[11px] font-semibold text-slate-700">Trace 时间线</h4>
+              {traceLoading && <span className="text-[9px] text-slate-400">加载中…</span>}
+              {!traceLoading && trace && (
+                <span className="text-[9px] text-slate-400">{trace.timeline?.length || 0} 个事件</span>
+              )}
+            </div>
+            {!traceLoading && !trace && (
+              <div className="text-[9px] text-slate-400 bg-slate-50 p-2 rounded">
+                Trace 回放需引擎 v0.5.4+ 支持（issue-056，当前引擎可能未实现）
+              </div>
+            )}
+            {trace && trace.timeline && trace.timeline.length > 0 && (
+              <div className="relative pl-4">
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-200" />
+                {trace.timeline.map((ev, idx) => (
+                  <TraceEventItem key={idx} ev={ev} isLast={idx === trace.timeline.length - 1} />
+                ))}
+              </div>
+            )}
+            {trace && (!trace.timeline || trace.timeline.length === 0) && (
+              <div className="text-[9px] text-slate-400">该 run 无 trace 事件</div>
+            )}
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** issue-056：单条 trace 事件展示（按事件类型着色 + 图标）。 */
+function TraceEventItem({ ev, isLast }: { ev: TraceTimelineEntry; isLast: boolean }) {
+  const { type, node_name, name, data } = ev;
+  const dotColor =
+    type === 'run.start' ? 'bg-slate-500' :
+    type === 'run.end' ? 'bg-slate-700' :
+    type === 'span' && data?.status === 'completed' ? 'bg-green-500' :
+    type === 'span' && data?.status === 'running' ? 'bg-blue-500 animate-pulse' :
+    type === 'span' && data?.status === 'failed' ? 'bg-red-500' :
+    type === 'generation' ? 'bg-indigo-500' :
+    type === 'tool.start' || type === 'tool.end' ? 'bg-amber-500' :
+    'bg-slate-300';
+  const typeLabel =
+    type === 'generation' ? '🤖 LLM' :
+    type === 'tool.start' ? '🔧 工具开始' :
+    type === 'tool.end' ? '🔧 工具结束' :
+    type === 'tool.error' ? '🔧 工具错误' :
+    type === 'run.start' ? '▶️ 任务开始' :
+    type === 'run.end' ? '⏹ 任务结束' :
+    type;
+  const usage = data?.usage as Record<string, any> | undefined;
+  const usageText = usage ? `T ${(usage.prompt_tokens || 0) + (usage.completion_tokens || 0)}` : '';
+  const latency = data?.latency_ms != null ? `⏱ ${formatDuration(data.latency_ms)}` : '';
+  const status = data?.status ? ` ${data.status}` : '';
+  const toolName = data?.tool_name ? ` ${data.tool_name}` : '';
+  const result = data?.result != null ? ` → ${String(data.result).slice(0, 40)}` : '';
+
+  return (
+    <div className={`relative pb-2 ${isLast ? '' : ''}`}>
+      <span className={`absolute left-[-16px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow ${dotColor}`} />
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] font-mono text-slate-400 shrink-0">{formatTime(traceTimestamp(ev.timestamp))}</span>
+        <span className="text-[10px] font-medium text-slate-700 truncate">{typeLabel}{toolName}</span>
+      </div>
+      <div className="flex items-center gap-2 ml-auto text-[9px] text-slate-400 mt-0.5">
+        {node_name && <span className="font-mono text-slate-500">{node_name}</span>}
+        <span className="text-slate-400">{name}</span>
+        {status && <span>{status}</span>}
+        {usageText && <span>{usageText}</span>}
+        {latency && <span>{latency}</span>}
+        {result && <span className="text-slate-500 truncate">{result}</span>}
       </div>
     </div>
   );

@@ -39,6 +39,31 @@ export interface NodeMetrics {
   tool_calls?: number;
 }
 
+// issue-056 契约：workflow run trace 回放（完整生命周期时间线）
+export interface TraceTimelineEntry {
+  timestamp: number;
+  type: string;        // run.start | run.end | span | generation | tool.start | tool.end | ...
+  node_name: string | null;
+  name: string;
+  data: Record<string, any>;
+}
+
+export interface RunTrace {
+  run_id: string;
+  trace_id?: string;
+  status: string;
+  started_at?: number;
+  ended_at?: number;
+  duration_ms?: number;
+  inputs?: Record<string, any>;
+  outputs?: Record<string, any>;
+  metadata?: Record<string, any>;
+  node_metrics?: Record<string, NodeMetrics>;
+  timeline: TraceTimelineEntry[];
+  scores?: Array<{ name: string; value: number; comment?: string }>;
+}
+
+
 export interface NodeConfigResponse {
   run_id: string;
   node_id: string;
@@ -95,6 +120,10 @@ export const listWorkflowRuns = () =>
 
 export const getWorkflowRun = (runId: string) =>
   api.get(`/workflow/runs/${runId}`).then(r => r.data);
+
+/** issue-056 契约：获取 workflow run 完整 trace 回放（时间线 + 聚合指标）。 */
+export const getRunTrace = (runId: string) =>
+  api.get<RunTrace>(`/workflow/runs/${runId}/trace`).then(r => r.data);
 
 export const getWorkflowConfig = (runId: string) =>
   api.get(`/workflow/runs/${runId}/workflow-config`).then(r => r.data);

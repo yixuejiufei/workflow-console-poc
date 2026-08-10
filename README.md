@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.40**：任务测评新增「Trace 时间线」——对接引擎 issue-056 trace 回放 API（`GET /runs/{run_id}/trace`，v0.5.4+）：展示 run 完整生命周期（run.start → span → generation → tool.start/end → run.end），按事件类型着色 + 图标（LLM/工具/任务起止），显示 token 消耗、耗时、工具名、结果摘要；引擎未实现时优雅降级提示
 - **v0.1.39**：修复【任务画布】「预览页面」按钮消失 + 【任务测评】新增「产出预览」——根因：v0.5.x 引擎产物改为 snapshot 磁盘 + artifact-files 端点（run 详情 `result`/`artifacts` 为空），旧逻辑依赖 `activeRun.result` 提取产物导致按钮不显示。修复：新增 `checkRunArtifact` 探测 `artifact-files/outputs/index.html`（HEAD 200 = 有产物），任务画布 completed 任务探测通过后显示预览按钮，任务测评详情头部同步加「产出预览 ↗」按钮
 - **v0.1.38**：任务测评页签 4 项优化——①userinput 节点只读展示用户输入内容（textarea readOnly，内容来自 run.inputs 字符串字段）②end 虚拟节点在 run completed 时显示「已完成」（不再显示「未执行」）③Token 消耗图标 🔤 → 艺术字体大写 T（衬线体 + 圆底）④新增「工具调用次数」列（扳手图标，读引擎 `node_metrics.tool_calls` 契约——issue-051 已提交，引擎实现前显示 —）
 - **v0.1.37**：新增顶级页签【任务测评】（任务画布后、工作流前）——三栏布局：左侧所有任务列表（listWorkflowRuns，run_id/状态/时间）；中间画布加载选中任务，按执行结果渲染每个节点状态（completed/running/failed/pending 着色 + 脉冲动画）；右侧详情节点时间线（执行顺序、每节点完成情况，耗时/Token/LLM 调用次数读引擎 `node_metrics` 契约——issue-048 已提交，引擎实现前显示 —）；画布 fitView 复用两段式逻辑（可见 + measure 后平滑过渡）；节点 metrics 契约字段已加入 client.ts 类型

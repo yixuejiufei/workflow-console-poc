@@ -262,43 +262,6 @@ export default function AgentConfigPanel({ runId }: Props) {
           </div>
         </div>
 
-        {/* 右栏：Agent 基本信息 */}
-        <div className="w-64 shrink-0 border-l border-slate-200 bg-slate-50/50 overflow-y-auto">
-          {selected && (
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-700">Agent 信息</h3>
-                <span className="text-[9px] text-slate-400 font-mono truncate" title={selected.path}>{selected.version}</span>
-              </div>
-
-              {loading && <div className="text-xs text-slate-400">加载中...</div>}
-              {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-
-              {agentInfo && !loading && (
-                <div className="border border-slate-200 rounded p-3 space-y-2 bg-white">
-                  <h4 className="text-[11px] font-semibold text-slate-700">基本信息</h4>
-                  <div className="text-[10px] space-y-1.5">
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">名称</span><span className="font-medium text-right break-all">{agentInfo.name || '-'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">版本</span><span className="font-medium">{agentInfo.version || '-'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">模型</span><span className="font-medium text-right break-all">{agentInfo.model || '-'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">温度</span><span className="font-medium">{agentInfo.temperature ?? '-'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">Prompt 版本</span><span className="font-medium">{agentInfo.prompt_version || '-'}</span></div>
-                    <div className="flex justify-between gap-2"><span className="text-slate-500">图入口</span><span className="font-mono text-right break-all" title={agentInfo.graph_entry}>{agentInfo.graph_entry || '-'}</span></div>
-                  </div>
-                  {agentInfo.description && (
-                    <div className="text-[10px] text-slate-500 pt-1.5 border-t border-slate-100">{agentInfo.description}</div>
-                  )}
-                </div>
-              )}
-
-              <div className="text-[9px] text-slate-400 font-mono break-all bg-slate-100 rounded p-2">{selected.path}</div>
-            </div>
-          )}
-          {!selected && (
-            <div className="p-4 text-xs text-slate-400">请选择左侧 Agent 查看基本信息</div>
-          )}
-        </div>
-
         {/* 中栏：详情配置（Schema / Prompt / agent.yaml） */}
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           {selected ? (
@@ -371,6 +334,43 @@ export default function AgentConfigPanel({ runId }: Props) {
             <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
               请选择左侧 Agent 查看详细配置
             </div>
+          )}
+        </div>
+
+        {/* 右栏：Agent 基本信息 */}
+        <div className="w-64 shrink-0 border-l border-slate-200 bg-slate-50/50 overflow-y-auto">
+          {selected && (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-slate-700">Agent 信息</h3>
+                <span className="text-[9px] text-slate-400 font-mono truncate" title={selected.path}>{selected.version}</span>
+              </div>
+
+              {loading && <div className="text-xs text-slate-400">加载中...</div>}
+              {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
+
+              {agentInfo && !loading && (
+                <div className="border border-slate-200 rounded p-3 space-y-2 bg-white">
+                  <h4 className="text-[11px] font-semibold text-slate-700">基本信息</h4>
+                  <div className="text-[10px] space-y-1.5">
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">名称</span><span className="font-medium text-right break-all">{agentInfo.name || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">版本</span><span className="font-medium">{agentInfo.version || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">模型</span><span className="font-medium text-right break-all">{agentInfo.model || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">温度</span><span className="font-medium">{agentInfo.temperature ?? '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">Prompt 版本</span><span className="font-medium">{agentInfo.prompt_version || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">图入口</span><span className="font-mono text-right break-all" title={agentInfo.graph_entry}>{agentInfo.graph_entry || '-'}</span></div>
+                  </div>
+                  {agentInfo.description && (
+                    <div className="text-[10px] text-slate-500 pt-1.5 border-t border-slate-100">{agentInfo.description}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="text-[9px] text-slate-400 font-mono break-all bg-slate-100 rounded p-2">{selected.path}</div>
+            </div>
+          )}
+          {!selected && (
+            <div className="p-4 text-xs text-slate-400">请选择左侧 Agent 查看基本信息</div>
           )}
         </div>
       </div>

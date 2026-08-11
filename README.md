@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.46**：【Agent】页签布局对齐【任务测评】【工作流】左中右实现——去掉整页 header，改为与任务测评一致的三栏：左侧 w-72 Agent 列表（header「Agent 列表」+「+ 新建 Agent」按钮、新建表单内嵌左栏）；中间 flex-1 详细配置（输入 Schema / System Prompt / agent.yaml）；右侧 w-80 Agent 基本信息（名称/版本/模型/温度/Prompt 版本/图入口/描述/路径）
 - **v0.1.45**：【Agent】三栏布局顺序修正——中栏（详细配置）与右栏（Agent 信息）DOM 顺序调整，确保视觉排列为「左侧列表 → 中间详细配置 → 右侧基本信息」（flex 布局按 DOM 顺序渲染，先前中/右顺序颠倒）
 - **v0.1.44**：【Agent】页签改三栏布局——左侧 Agent 列表（+新建表单），中间为详细配置区（输入 Schema / System Prompt / agent.yaml 编辑与保存），右侧为 Agent 基本信息（名称/版本/模型/温度/Prompt 版本/图入口/描述/路径）；选中任一 Agent 三栏联动显示
 - **v0.1.43**：顶部页签切换自动刷新数据——keep-alive 常驻渲染下组件只 mount 一次，切 tab 不会重新拉数据（必须 F5 才能看到新任务）。修复：任务画布 / 任务测评 / 工作流列表三个面板接收 `active` prop，从 hidden 变为 active 时自动 `refresh()`（用 prevActiveRef 检测 false→true 边沿，不重复刷新）；切回 tab 即可看到最新任务/工作流，无需手动 F5

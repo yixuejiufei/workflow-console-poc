@@ -194,157 +194,185 @@ export default function AgentConfigPanel({ runId }: Props) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        {showCreate && (
-          <div className="border-b border-slate-200 p-4 space-y-2 bg-blue-50/50">
-            <h3 className="text-xs font-semibold text-slate-700">新建 Agent</h3>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">名称</label>
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="如: web-dev, test-agent"
-                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">模型</label>
-              <input
-                type="text"
-                value={newModel}
-                onChange={(e) => setNewModel(e.target.value)}
-                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1">描述</label>
-              <textarea
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Agent 用途描述"
-                className="w-full h-14 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <button
-              onClick={handleCreate}
-              disabled={creating}
-              className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs rounded"
-            >
-              {creating ? '创建中...' : '创建'}
-            </button>
-          </div>
-        )}
-
-        {/* Agent 列表 */}
-        <div className="divide-y divide-slate-100">
-          {agents.length === 0 && !loading && (
-            <div className="px-4 py-6 text-xs text-slate-400 text-center">暂无 Agent，点击右上角"新建 Agent"创建</div>
-          )}
-          {agents.map((agent) => (
-            <button
-              key={agent.path}
-              onClick={() => { setSelected(agent); setError(null); setSavedMsg(null); }}
-              className={`w-full px-4 py-3 text-left hover:bg-slate-50 ${selected?.path === agent.path ? 'bg-blue-50' : ''}`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800">{agent.name}</span>
-                <span className="text-[9px] text-slate-400 font-mono">{agent.version}</span>
+      <div className="flex-1 flex min-w-0">
+        {/* 左栏：Agent 列表 */}
+        <div className="w-56 shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
+          {showCreate && (
+            <div className="border-b border-slate-200 p-3 space-y-2 bg-blue-50/50">
+              <h3 className="text-xs font-semibold text-slate-700">新建 Agent</h3>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">名称</label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="如: web-dev, test-agent"
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                />
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{agent.model}</div>
-              <div className="text-[9px] text-slate-400 font-mono mt-0.5 truncate">{agent.path}</div>
-              {agent.description && (
-                <div className="text-[9px] text-slate-400 mt-0.5 truncate">{agent.description}</div>
-              )}
-            </button>
-          ))}
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">模型</label>
+                <input
+                  type="text"
+                  value={newModel}
+                  onChange={(e) => setNewModel(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">描述</label>
+                <textarea
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  placeholder="Agent 用途描述"
+                  className="w-full h-14 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs rounded"
+              >
+                {creating ? '创建中...' : '创建'}
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-auto divide-y divide-slate-100">
+            {agents.length === 0 && !loading && (
+              <div className="px-4 py-6 text-xs text-slate-400 text-center">暂无 Agent，点击右上角"新建 Agent"创建</div>
+            )}
+            {agents.map((agent) => (
+              <button
+                key={agent.path}
+                onClick={() => { setSelected(agent); setError(null); setSavedMsg(null); }}
+                className={`w-full px-4 py-3 text-left hover:bg-slate-50 ${selected?.path === agent.path ? 'bg-blue-50' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-800">{agent.name}</span>
+                  <span className="text-[9px] text-slate-400 font-mono">{agent.version}</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">{agent.model}</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-0.5 truncate">{agent.path}</div>
+                {agent.description && (
+                  <div className="text-[9px] text-slate-400 mt-0.5 truncate">{agent.description}</div>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* 选中 agent 的配置编辑 */}
-        {selected && (
-          <div className="border-t border-slate-200 p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-slate-700">{selected.name} 配置</h3>
-              <span className="text-[9px] text-slate-400 font-mono">{selected.path}</span>
-            </div>
-
-            {loading && <div className="text-xs text-slate-400">加载中...</div>}
-            {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-
-            {agentInfo && !loading && (
-              <div className="border border-slate-200 rounded p-3 space-y-2">
-                <h4 className="text-[11px] font-semibold text-slate-700">Agent 信息</h4>
-                <div className="grid grid-cols-2 gap-2 text-[10px]">
-                  <div className="text-slate-500">名称</div><div className="font-medium">{agentInfo.name || '-'}</div>
-                  <div className="text-slate-500">版本</div><div className="font-medium">{agentInfo.version || '-'}</div>
-                  <div className="text-slate-500">模型</div><div className="font-medium">{agentInfo.model || '-'}</div>
-                  <div className="text-slate-500">温度</div><div className="font-medium">{agentInfo.temperature ?? '-'}</div>
-                  <div className="text-slate-500">Prompt 版本</div><div className="font-medium">{agentInfo.prompt_version || '-'}</div>
-                  <div className="text-slate-500">图入口</div><div className="font-mono truncate" title={agentInfo.graph_entry}>{agentInfo.graph_entry || '-'}</div>
-                </div>
+        {/* 右栏：Agent 基本信息 */}
+        <div className="w-64 shrink-0 border-l border-slate-200 bg-slate-50/50 overflow-y-auto">
+          {selected && (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-slate-700">Agent 信息</h3>
+                <span className="text-[9px] text-slate-400 font-mono truncate" title={selected.path}>{selected.version}</span>
               </div>
-            )}
 
-            {agentInfo?.input_schema && agentInfo.input_schema.length > 0 && !loading && (
-              <div className="border border-slate-200 rounded p-3">
-                <h4 className="text-[11px] font-semibold text-slate-700 mb-2">输入 Schema</h4>
-                <div className="space-y-1.5">
-                  {agentInfo.input_schema.map((f) => (
-                    <div key={f.name} className="text-[10px] border border-slate-100 rounded p-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold">{f.name}</span>
-                        <span className="text-slate-400">{f.type || 'text'}</span>
-                        {f.required && <span className="text-red-500">*</span>}
+              {loading && <div className="text-xs text-slate-400">加载中...</div>}
+              {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
+
+              {agentInfo && !loading && (
+                <div className="border border-slate-200 rounded p-3 space-y-2 bg-white">
+                  <h4 className="text-[11px] font-semibold text-slate-700">基本信息</h4>
+                  <div className="text-[10px] space-y-1.5">
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">名称</span><span className="font-medium text-right break-all">{agentInfo.name || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">版本</span><span className="font-medium">{agentInfo.version || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">模型</span><span className="font-medium text-right break-all">{agentInfo.model || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">温度</span><span className="font-medium">{agentInfo.temperature ?? '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">Prompt 版本</span><span className="font-medium">{agentInfo.prompt_version || '-'}</span></div>
+                    <div className="flex justify-between gap-2"><span className="text-slate-500">图入口</span><span className="font-mono text-right break-all" title={agentInfo.graph_entry}>{agentInfo.graph_entry || '-'}</span></div>
+                  </div>
+                  {agentInfo.description && (
+                    <div className="text-[10px] text-slate-500 pt-1.5 border-t border-slate-100">{agentInfo.description}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="text-[9px] text-slate-400 font-mono break-all bg-slate-100 rounded p-2">{selected.path}</div>
+            </div>
+          )}
+          {!selected && (
+            <div className="p-4 text-xs text-slate-400">请选择左侧 Agent 查看基本信息</div>
+          )}
+        </div>
+
+        {/* 中栏：详情配置（Schema / Prompt / agent.yaml） */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          {selected ? (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-slate-700">{selected.name} 详细配置</h3>
+                <span className="text-[9px] text-slate-400 font-mono truncate">{selected.path}</span>
+              </div>
+
+              {agentInfo?.input_schema && agentInfo.input_schema.length > 0 && !loading && (
+                <div className="border border-slate-200 rounded p-3">
+                  <h4 className="text-[11px] font-semibold text-slate-700 mb-2">输入 Schema</h4>
+                  <div className="space-y-1.5">
+                    {agentInfo.input_schema.map((f) => (
+                      <div key={f.name} className="text-[10px] border border-slate-100 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold">{f.name}</span>
+                          <span className="text-slate-400">{f.type || 'text'}</span>
+                          {f.required && <span className="text-red-500">*</span>}
+                        </div>
+                        <div className="text-slate-600 mt-0.5">{f.label || f.name}</div>
+                        {f.description && <div className="text-slate-400 mt-0.5">{f.description}</div>}
                       </div>
-                      <div className="text-slate-600 mt-0.5">{f.label || f.name}</div>
-                      {f.description && <div className="text-slate-400 mt-0.5">{f.description}</div>}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="border border-slate-200 rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[11px] font-semibold text-slate-700">System Prompt</h4>
-                <button
-                  onClick={handleSavePrompt}
-                  disabled={saving}
-                  className="text-[10px] px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded"
-                >
-                  {saving ? '保存中...' : '保存 Prompt'}
-                </button>
+              <div className="border border-slate-200 rounded p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[11px] font-semibold text-slate-700">System Prompt</h4>
+                  <button
+                    onClick={handleSavePrompt}
+                    disabled={saving}
+                    className="text-[10px] px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded"
+                  >
+                    {saving ? '保存中...' : '保存 Prompt'}
+                  </button>
+                </div>
+                <textarea
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  className="w-full h-40 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                  placeholder="// 系统提示词..."
+                />
               </div>
-              <textarea
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                className="w-full h-40 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                placeholder="// 系统提示词..."
-              />
+
+              <div className="border border-slate-200 rounded p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[11px] font-semibold text-slate-700">agent.yaml</h4>
+                  <button
+                    onClick={handleSaveAgent}
+                    disabled={saving}
+                    className="text-[10px] px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white rounded"
+                  >
+                    保存 agent.yaml
+                  </button>
+                </div>
+                <textarea
+                  value={agentYaml}
+                  onChange={(e) => setAgentYaml(e.target.value)}
+                  className="w-full h-40 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                  placeholder="# agent 配置..."
+                />
+              </div>
+
+              {savedMsg && <div className="text-xs text-green-600 bg-green-50 p-2 rounded">{savedMsg}</div>}
             </div>
-
-            <div className="border border-slate-200 rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[11px] font-semibold text-slate-700">agent.yaml</h4>
-                <button
-                  onClick={handleSaveAgent}
-                  disabled={saving}
-                  className="text-[10px] px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white rounded"
-                >
-                  保存 agent.yaml
-                </button>
-              </div>
-              <textarea
-                value={agentYaml}
-                onChange={(e) => setAgentYaml(e.target.value)}
-                className="w-full h-40 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                placeholder="# agent 配置..."
-              />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
+              请选择左侧 Agent 查看详细配置
             </div>
-
-            {savedMsg && <div className="text-xs text-green-600 bg-green-50 p-2 rounded">{savedMsg}</div>}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

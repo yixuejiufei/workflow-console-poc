@@ -12,7 +12,7 @@ import {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig, checkRunArtifact, getArtifactPreviewUrl, getRunTrace } from '../api/client';
+import { listWorkflowRuns, getWorkflowRun, getWorkflowConfig, checkRunArtifact, getArtifactPreviewUrl, getRunTrace, deleteWorkflowRun } from '../api/client';
 import type { WorkflowRun, RunTrace, TraceTimelineEntry } from '../api/client';
 import { parseWorkflowYaml } from '../utils/yamlParser';
 import type { WorkflowDef } from '../types/workflow';
@@ -561,8 +561,34 @@ export default function TaskReviewPanel() {
     }
   }, []);
 
+  // 删除任务：确认弹窗（复用任务画布交互模式）
+  const [pendingDelete, setPendingDelete] = useState<WorkflowRun | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const confirmDeleteRun = useCallback(async () => {
+    if (!pendingDelete) return;
+    const run = pendingDelete;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteWorkflowRun(run.run_id);
+      // 本地移除（无论引擎调用是否成功，保证 UI 响应）
+      setRuns(prev => prev.filter(r => r.run_id !== run.run_id));
+      // 若删除的是当前选中项，清除选中详情
+      if (selectedRunId === run.run_id) {
+        setSelectedRunId(null);
+        setSelectedRun(null);
+        setWorkflow(null);
+      }
+      setPendingDelete(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || '删除任务失败');
+    } finally {
+      setDeleting(false);
+    }
+  }, [pendingDelete, selectedRunId]);
+
   return (
-    <div className="flex-1 flex min-w-0">
+    <div className="flex-1 flex min-w-0 relative">
       {/* 左侧：任务列表 */}
       <div className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -588,7 +614,16 @@ export default function TaskReviewPanel() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono text-slate-600 truncate">{run.run_id}</span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${statusBadgeClass(run.status)}`}>{statusLabel(run.status)}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${statusBadgeClass(run.status)}`}>{statusLabel(run.status)}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPendingDelete(run); setError(null); }}
+                      className="text-[9px] px-1 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium"
+                      title="删除任务"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 truncate">{run.workflow_path || '-'}</div>
                 <div className="text-[9px] text-slate-300 mt-0.5">{formatTime(run.started_at)}</div>
@@ -597,6 +632,33 @@ export default function TaskReviewPanel() {
           </div>
         </div>
         {error && <div className="text-[10px] text-red-600 bg-red-50 p-2 border-t border-red-100">{error}</div>}
+        {/* 删除任务确认弹窗（复用任务画布交互模式） */}
+        {pendingDelete && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-40" onClick={() => { if (!deleting) setPendingDelete(null); }}>
+            <div className="bg-white rounded-xl shadow-2xl p-5 w-80 border border-slate-200" onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">删除任务</h3>
+              <p className="text-xs text-slate-500 mb-4">
+                确定删除任务 <span className="font-mono font-semibold text-slate-700">{pendingDelete.run_id}</span> 吗？删除后不可恢复。
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setPendingDelete(null)}
+                  disabled={deleting}
+                  className="text-xs px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDeleteRun}
+                  disabled={deleting}
+                  className="text-xs px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 font-medium disabled:opacity-50"
+                >
+                  {deleting ? '删除中...' : '确认删除'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 中间：画布 */}

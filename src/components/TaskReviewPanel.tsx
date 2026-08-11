@@ -512,7 +512,7 @@ function TraceEventItem({ ev, isLast }: { ev: TraceTimelineEntry; isLast: boolea
 
 /* ---------- 主组件：三栏 ---------- */
 
-export default function TaskReviewPanel() {
+export default function TaskReviewPanel({ active }: { active?: boolean }) {
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
@@ -535,6 +535,16 @@ export default function TaskReviewPanel() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // 切换回本 tab 时刷新列表（keep-alive：组件常驻，仅 hidden，需 active 变化触发）
+  const prevActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (active && !wasActive) {
+      refresh();
+    }
+  }, [active, refresh]);
 
   // 选中任务：加载详情 + 工作流配置
   const handleSelect = useCallback(async (runId: string) => {

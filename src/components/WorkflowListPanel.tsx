@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkflowSummary } from '../api/client';
 import { listWorkflows, createWorkflow, deleteWorkflow } from '../api/client';
 
@@ -6,12 +6,14 @@ interface Props {
   selected: WorkflowSummary | null;
   onSelect: (wf: WorkflowSummary | null) => void;
   onCreated?: () => void;
+  active?: boolean;
 }
 
 export default function WorkflowListPanel({
   selected,
   onSelect,
   onCreated,
+  active,
 }: Props) {
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +47,16 @@ export default function WorkflowListPanel({
   useEffect(() => {
     refresh();
   }, []);
+
+  // 切换回本 tab 时刷新列表（keep-alive：组件常驻，仅 hidden，需 active 变化触发）
+  const prevActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (active && !wasActive) {
+      refresh();
+    }
+  }, [active]);
 
   const handleCreate = async () => {
     if (!newName.trim()) {

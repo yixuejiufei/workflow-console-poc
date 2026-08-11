@@ -323,7 +323,7 @@ const TASK_ROW_H = 175;
 /** localStorage 键：未运行任务（无 runId 的 pending）持久化，刷新不丢 */
 const LS_UNSTARTED_KEY = 'workflow-console-unstarted-tasks';
 
-export default function TaskCanvasPanel() {
+export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [tasks, setTasks] = useState<TaskInstance[]>([]);
   const [showPicker, setShowPicker] = useState(false);
@@ -332,9 +332,13 @@ export default function TaskCanvasPanel() {
   // 产物存在性缓存（v0.5.x 引擎产物走 artifact-files 端点，需探测判断）
   const [artifactOk, setArtifactOk] = useState<Record<string, boolean>>({});
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  // 未运行任务（无 runId 的 pending）持久化到 localStorage，刷新不丢
+  // 注意：loadedRef 标记加载完成前不写 localStorage——避免 StrictMode 双执行 effect
+  // 时 tasks=[] 把 localStorage 中已存的未运行任务清掉
+  const loadedRef = useRef(false);
 
   // 加载可选工作流 & 恢复活跃任务（引擎 run + localStorage 未运行任务合并）
-  useEffect(() => {
+  const loadData = useCallback(() => {
     Promise.all([
       listWorkflows(),
       listWorkflowRuns(),
@@ -376,10 +380,24 @@ export default function TaskCanvasPanel() {
     }).catch(() => {});
   }, []);
 
+  // 首次挂载加载
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 切换回本 tab 时刷新数据（keep-alive：组件常驻，仅 hidden，需 active 变化触发）
+  const prevActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (active && !wasActive) {
+      loadData();
+    }
+  }, [active, loadData]);
+
   // 未运行任务（无 runId 的 pending）持久化到 localStorage，刷新不丢
   // 注意：loadedRef 标记加载完成前不写 localStorage——避免 StrictMode 双执行 effect
   // 时 tasks=[] 把 localStorage 中已存的未运行任务清掉
-  const loadedRef = useRef(false);
   useEffect(() => {
     if (!loadedRef.current) return;
     const unstarted = tasks.filter(t => !t.runId && t.status === 'pending');

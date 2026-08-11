@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.43**：顶部页签切换自动刷新数据——keep-alive 常驻渲染下组件只 mount 一次，切 tab 不会重新拉数据（必须 F5 才能看到新任务）。修复：任务画布 / 任务测评 / 工作流列表三个面板接收 `active` prop，从 hidden 变为 active 时自动 `refresh()`（用 prevActiveRef 检测 false→true 边沿，不重复刷新）；切回 tab 即可看到最新任务/工作流，无需手动 F5
 - **v0.1.42**：【任务测评】左侧任务列表新增「删除」按钮——每个任务行右侧加 🗑 按钮（复用任务画布删除交互模式：自定义确认弹窗 + `DELETE /workflow/runs/{run_id}`，v0.6.8 引擎已支持删除 run 记录 + snapshot）；删除当前选中任务时同步清空中间画布与右侧详情；删除失败显示错误提示，不丢列表
 - **v0.1.41**：【设置】新增「LiteLLM Virtual Key」输入框——设置页面 LLM 设置支持配置虚拟 key（按角色/项目分配，用于成本拆分与限流），引擎 LLM client 优先使用虚拟 key（issue-027 已支持）；对接引擎 issue-068（`LLMSettingsRequest` 加 `litellm_virtual_key` 字段 + `ENGINE_CONFIG_FIELDS` 白名单），引擎实现前保存/测试会忽略该字段
 - **v0.1.40**：任务测评新增「Trace 时间线」——对接引擎 issue-056 trace 回放 API（`GET /runs/{run_id}/trace`，v0.5.4+）：展示 run 完整生命周期（run.start → span → generation → tool.start/end → run.end），按事件类型着色 + 图标（LLM/工具/任务起止），显示 token 消耗、耗时、工具名、结果摘要；引擎未实现时优雅降级提示

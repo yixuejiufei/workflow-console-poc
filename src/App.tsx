@@ -243,7 +243,7 @@ function App() {
       <header className="h-14 bg-slate-900 text-white flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-blue-500 rounded" />
-          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.42 POC</span></h1>
+          <h1 className="font-semibold text-sm">YiNeng Workflow Console <span className="text-slate-400 font-normal">v0.1.43 POC</span></h1>
         </div>
 
         <nav className="flex items-center gap-1 h-full">
@@ -280,10 +280,10 @@ function App() {
       <main className="flex-1 flex overflow-hidden relative">
         {/* keep-alive：所有 tab 常驻渲染，非活动 tab 用 hidden 隐藏（组件不卸载，state 保留） */}
         <div className={`${topTab === 'tasks' ? 'flex-1 flex flex-col min-w-0' : 'hidden'}`}>
-          <TaskCanvasPanel />
+          <TaskCanvasPanel active={topTab === 'tasks'} />
         </div>
         <div className={`${topTab === 'review' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
-          <TaskReviewPanel />
+          <TaskReviewPanel active={topTab === 'review'} />
         </div>
         <div className={`${topTab === 'workflow' ? 'flex-1 flex min-w-0' : 'hidden'}`}>
           <>
@@ -291,6 +291,7 @@ function App() {
             <div className="w-72 shrink-0 border-r border-slate-200">
               <WorkflowListPanel
                 selected={selectedWorkflow}
+                active={topTab === 'workflow'}
                 onSelect={(wf) => {
                   setSelectedWorkflow(wf);
                   // 删除选中工作流时清空画布与 YAML，避免残留已删工作流节点

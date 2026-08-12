@@ -583,16 +583,26 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
     return nodes;
   }, [tasks, organized, handleRunTask, handleRequirementChange, handleConfirmTask, artifactOk]);
 
-  // 构建边
+  // 构建边（begin → userinput → 工作流实际节点… → end）
   const allEdges = useMemo<Edge[]>(() => {
     const visible = tasks.filter(t => !t.confirmed);
     const edges: Edge[] = [];
     for (const task of visible) {
       const tid = task.id;
+      const nodeIds = getWorkflowNodeIds(task);
       edges.push(
         { id: `${tid}__begin->userinput`, source: `${tid}__begin`, target: `${tid}__userinput` },
-        { id: `${tid}__userinput->web-dev`, source: `${tid}__userinput`, target: `${tid}__web-dev` },
-        { id: `${tid}__web-dev->end`, source: `${tid}__web-dev`, target: `${tid}__end` },
+        { id: `${tid}__userinput->first`, source: `${tid}__userinput`, target: `${tid}__wf-${nodeIds[0]}` },
+      );
+      for (let i = 0; i < nodeIds.length - 1; i++) {
+        edges.push({
+          id: `${tid}__${nodeIds[i]}->${nodeIds[i + 1]}`,
+          source: `${tid}__wf-${nodeIds[i]}`,
+          target: `${tid}__wf-${nodeIds[i + 1]}`,
+        });
+      }
+      edges.push(
+        { id: `${tid}__last->end`, source: `${tid}__wf-${nodeIds[nodeIds.length - 1]}`, target: `${tid}__end` },
       );
     }
     return edges;
@@ -638,20 +648,18 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
                 }
               }
 
-              // 任务标题拖拽 → 移动该任务所有子节点
+              // 任务标题拖拽 → 移动该任务所有子节点（动态匹配 __ 前缀，支持任意工作流节点）
               if (change.id.endsWith('__header')) {
                 const baseId = change.id.replace('__header', '');
-                const childSuffixes = ['__begin', '__userinput', '__web-dev', '__end'];
-                for (const suffix of childSuffixes) {
-                  const childId = `${baseId}${suffix}`;
-                  const childNode = prevNodes.find(n => n.id === childId);
-                  if (childNode) {
+                const prefix = `${baseId}__`;
+                for (const node of prevNodes) {
+                  if (node.id.startsWith(prefix) && node.id !== change.id) {
                     extra.push({
-                      id: childId,
+                      id: node.id,
                       type: 'position',
                       position: {
-                        x: childNode.position.x + dx,
-                        y: childNode.position.y + dy,
+                        x: node.position.x + dx,
+                        y: node.position.y + dy,
                       },
                     });
                   }
@@ -793,7 +801,30 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   );
 }
 
-/** 向节点数组添加一个任务的 5 个节点 */
+/** 从任务的 run 记录提取 workflow 节点顺序（未运行时 fallback 单节点 web-dev） */
+function getWorkflowNodeIds(task: TaskInstance): string[] {
+  const run = task.activeRun;
+  if (run) {
+    const executed = run.executed_nodes || [];
+    if (executed.length > 0) return executed;
+    if (run.current_node) return [run.current_node];
+  }
+  return ['web-dev'];
+}
+
+/** 判断单个 workflow 节点状态（基于 executed_nodes / current_node） */
+function workflowNodeStatus(task: TaskInstance, nodeId: string): string {
+  const run = task.activeRun;
+  if (!run) return '';
+  const executed = run.executed_nodes || [];
+  if (run.status === 'completed') {
+    return executed.includes(nodeId) ? 'completed' : '';
+  }
+  if (run.current_node === nodeId) return 'running';
+  return executed.includes(nodeId) ? 'completed' : '';
+}
+
+/** 向节点数组添加一个任务的节点（begin → userinput → 工作流实际节点… → end） */
 function addTaskNodes(
   nodes: Node[],
   task: TaskInstance,
@@ -807,13 +838,7 @@ function addTaskNodes(
     onDelete: () => void;
   },
 ) {
-  const executeNodeStatus = task.activeRun
-    ? task.activeRun.status === 'completed'
-      ? (task.activeRun.executed_nodes || [task.activeRun.current_node]).includes('web-dev') ? 'completed' : ''
-      : task.activeRun.current_node === 'web-dev' ? 'running' : ''
-    : '';
   const taskNodeStatus = task.status;
-  const wfNodeStatus = task.status === 'running' ? (executeNodeStatus || '') : task.status === 'completed' ? 'completed' : '';
 
   // 产物预览 URL：completed + 产物探测通过（v0.5.x 引擎产物走 artifact-files 端点，run.result 已为空）
   let previewUrl: string | null = null;
@@ -858,18 +883,26 @@ function addTaskNodes(
     },
   });
 
-  nodes.push({
-    id: `${task.id}__web-dev`,
-    type: 'taskWorkflow',
-    position: { x: ox + 400, y: oy + 50 },
-    draggable: false,
-    data: { id: 'web-dev', status: wfNodeStatus },
+  // 工作流实际节点（从 run 记录提取；未运行任务 fallback web-dev）
+  const nodeIds = getWorkflowNodeIds(task);
+  const NODE_GAP = 130;
+  const wfX0 = ox + 400;
+  nodeIds.forEach((nodeId, i) => {
+    const status = workflowNodeStatus(task, nodeId);
+    const wfStatus = task.status === 'running' ? (status || '') : task.status === 'completed' ? 'completed' : '';
+    nodes.push({
+      id: `${task.id}__wf-${nodeId}`,
+      type: 'taskWorkflow',
+      position: { x: wfX0 + i * NODE_GAP, y: oy + 50 },
+      draggable: false,
+      data: { id: nodeId, status: wfStatus },
+    });
   });
 
   nodes.push({
     id: `${task.id}__end`,
     type: 'taskWorkflow',
-    position: { x: ox + 560, y: oy + 50 },
+    position: { x: wfX0 + nodeIds.length * NODE_GAP, y: oy + 50 },
     draggable: false,
     data: { id: '__end__', status: task.status === 'completed' ? 'completed' : '' },
   });

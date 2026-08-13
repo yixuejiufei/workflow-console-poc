@@ -15,6 +15,19 @@ function decodeUnicodeEscapes(text: string): string {
   return text.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
+/**
+ * 归一化 workflow.yaml 节点里的 agent 引用为引擎可访问路径。
+ * workflow.yaml 可写 `agent: main.yaml`（相对文件名），但引擎 agent 配置走 DB config store，
+ * 虚拟路径为 `agents/{name}.yaml`（listAgents 返回的 path）——`main.yaml` 直读会被沙箱 Access denied。
+ * 规则：`agent.yaml`（单 agent 项目）与 `agents/...` 保持原样；其他（`main.yaml` 等）加 `agents/` 前缀。
+ */
+function toAgentStorePath(agentRef: string): string {
+  const norm = agentRef.startsWith('/') ? agentRef.slice(1) : agentRef;
+  if (!norm) return norm;
+  if (norm === 'agent.yaml' || norm.startsWith('agents/')) return norm;
+  return `agents/${norm}`;
+}
+
 export default function NodeEditModal({ nodeId, workflow, activeRunId, onClose, onSave }: Props) {
   const [editing, setEditing] = useState(false);
   const [configContent, setConfigContent] = useState<string | null>(null);
@@ -55,7 +68,9 @@ export default function NodeEditModal({ nodeId, workflow, activeRunId, onClose, 
         .finally(() => setLoading(false));
     } else {
       // 无 run 上下文（如新建/从未运行的工作流）：直接读项目文件里的 agent.yaml 原文
-      readProjectFile(node.agent)
+      // 归一化 agent 引用：workflow.yaml 里可写 main.yaml（相对文件名），但引擎 agent 配置
+      // 走 DB config store（agents/{name}.yaml 虚拟路径）——main.yaml 直读会被沙箱 Access denied
+      readProjectFile(toAgentStorePath(node.agent))
         .then((res) => {
           setConfigContent(res.content);
           setConfigError(null);

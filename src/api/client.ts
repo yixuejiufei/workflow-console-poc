@@ -20,8 +20,8 @@ export interface WorkflowRun {
   inputs?: Record<string, any>;
   result?: any;
   error?: string;
-  started_at?: string;
-  finished_at?: string;
+  started_at?: string | number;
+  ended_at?: string | number;
   confirmed?: boolean;
   // issue-048 契约：节点级 metrics（引擎实现前为空）
   node_metrics?: Record<string, NodeMetrics>;

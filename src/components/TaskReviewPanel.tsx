@@ -55,12 +55,36 @@ function formatDuration(ms?: number): string {
   return `${m}m ${s}s`;
 }
 
-function formatTime(ts?: string): string {
-  if (!ts) return '';
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return '';
+function formatTime(ts?: string | number): string {
+  const ms = parseRunTimestamp(ts);
+  if (ms === undefined) return '';
+  const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * v0.1.52：兼容 run 时间戳的两种格式——
+ * - listWorkflowRuns 返回 ISO 字符串（"2026-08-13T07:05:48.424230"）
+ * - getWorkflowRun 返回 Unix 秒浮点数（1786575948.42423）
+ * 数字 < 1e12 视为秒（× 1000 转毫秒），>= 1e12 视为已是毫秒。
+ * traceTimestamp 已统一为 ISO 字符串，不走这里。
+ */
+function parseRunTimestamp(ts?: string | number): number | undefined {
+  if (ts == null || ts === '') return undefined;
+  if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts;
+  const asNum = Number(ts);
+  if (!isNaN(asNum) && /^\d+(\.\d+)?$/.test(ts)) return asNum < 1e12 ? asNum * 1000 : asNum;
+  const d = new Date(ts).getTime();
+  return isNaN(d) ? undefined : d;
+}
+
+/** v0.1.52：把任务执行区间（started_at → ended_at，进行中用 now）转成毫秒，交给现有 formatDuration(ms) 统一格式。引擎实际返回字段名是 ended_at（不是 finished_at）。 */
+function runDurationMs(startedAt?: string | number, endedAt?: string | number): number | undefined {
+  const start = parseRunTimestamp(startedAt);
+  if (start === undefined) return undefined;
+  const end = parseRunTimestamp(endedAt) ?? Date.now();
+  return Math.max(0, end - start);
 }
 
 /** issue-056：trace 事件 timestamp 为 Unix 秒，转为毫秒字符串供 formatTime 显示。 */
@@ -304,7 +328,6 @@ function ReviewCanvas({ workflow, run }: { workflow: WorkflowDef | null; run: Wo
         onInit={(instance) => { rfRef.current = instance; }}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
-        panOnScroll
       >
         <Background gap={16} size={1} color="#cbd5e1" />
         <Controls />
@@ -395,6 +418,7 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
         <div className="flex items-center gap-2 mt-1">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${statusBadgeClass(run.status)}`}>{statusLabel(run.status)}</span>
           <span className="text-[10px] text-slate-400">{formatTime(run.started_at)}</span>
+          <span className="text-[10px] text-slate-400">⏱ {formatDuration(runDurationMs(run.started_at, run.ended_at))}</span>
         </div>
         {run.workflow_path && <div className="text-[9px] text-slate-400 font-mono mt-1 truncate">{run.workflow_path}</div>}
       </div>
@@ -667,7 +691,7 @@ export default function TaskReviewPanel({ active }: { active?: boolean }) {
                   </div>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 truncate">{run.workflow_path || '-'}</div>
-                <div className="text-[9px] text-slate-300 mt-0.5">{formatTime(run.started_at)}</div>
+                <div className="text-[9px] text-slate-300 mt-0.5">{formatTime(run.started_at)}<span className="ml-1.5 text-slate-400">⏱ {formatDuration(runDurationMs(run.started_at, run.ended_at))}</span></div>
               </button>
             ))}
           </div>

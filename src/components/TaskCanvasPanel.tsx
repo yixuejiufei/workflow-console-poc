@@ -13,9 +13,10 @@ import {
 } from 'reactflow';
 import type { Node, Edge, NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, deleteWorkflowRun, getArtifactPreviewUrl, checkRunArtifact } from '../api/client';
+import { listWorkflows, runWorkflow, getWorkflowRun, listWorkflowRuns, confirmWorkflowRun, deleteWorkflowRun, getArtifactPreviewUrl, checkRunArtifact, readProjectFile } from '../api/client';
 import type { WorkflowSummary, WorkflowRun } from '../api/client';
 import { extractArtifacts } from '../utils/artifacts';
+import { parseWorkflowYaml } from '../utils/yamlParser';
 
 interface TaskInstance {
   id: string;
@@ -30,6 +31,8 @@ interface TaskInstance {
   activeRun?: WorkflowRun | null;
   confirmed?: boolean;
   createdAt?: number;
+  /** 从 workflow.yaml 解析的实际节点顺序（未运行任务画布渲染用；有 run 时以 executed_nodes 为准） */
+  wfNodes?: string[];
 }
 
 /** 任务分类 */
@@ -339,6 +342,11 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   // 时 tasks=[] 把 localStorage 中已存的未运行任务清掉
   const loadedRef = useRef(false);
 
+  // 更新单个任务（须在 loadData 之前定义——loadData 依赖它做 wfNodes 异步补齐）
+  const updateTask = useCallback((taskId: string, patch: Partial<TaskInstance>) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...patch } : t));
+  }, []);
+
   // 加载可选工作流 & 恢复活跃任务（引擎 run + localStorage 未运行任务合并）
   const loadData = useCallback(() => {
     Promise.all([
@@ -379,8 +387,19 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
       } catch { /* localStorage 异常忽略 */ }
       loadedRef.current = true;
       setTasks([...localUnstarted, ...restored]);
+      // 补解析未运行任务的 wfNodes（旧 localStorage 格式无此字段；刷新后异步补齐，画布实时更新）
+      for (const t of localUnstarted) {
+        if (!t.wfNodes || t.wfNodes.length === 0) {
+          const wf = wfs.find(w => t.workflowPath === w.path || (t.absPath && w.abs_path && t.absPath === w.abs_path));
+          if (wf) {
+            loadWorkflowNodeIds(wf).then(ids => {
+              if (ids.length > 0) updateTask(t.id, { wfNodes: ids });
+            }).catch(() => {});
+          }
+        }
+      }
     }).catch(() => {});
-  }, []);
+  }, [updateTask]);
 
   // 首次挂载加载
   useEffect(() => {
@@ -431,12 +450,13 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
     };
     setTasks(prev => [...prev, newTask]);
     setShowPicker(false);
-  }, [tasks.length]);
-
-  // 更新单个任务
-  const updateTask = useCallback((taskId: string, patch: Partial<TaskInstance>) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...patch } : t));
-  }, []);
+    // 异步读取 workflow.yaml 解析实际节点顺序（未运行任务画布渲染真实节点；失败则回退 web-dev）
+    loadWorkflowNodeIds(wf).then(ids => {
+      if (ids.length > 0) {
+        updateTask(newTask.id, { wfNodes: ids });
+      }
+    }).catch(() => {});
+  }, [updateTask]);
 
   // 运行任务
   const handleRunTask = useCallback(async (taskId: string) => {
@@ -808,7 +828,18 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   );
 }
 
-/** 从任务的 run 记录提取 workflow 节点顺序（未运行时 fallback 单节点 web-dev） */
+/** 读取 workflow.yaml 解析实际节点顺序（不含 begin/userinput/end 等画布合成节点） */
+async function loadWorkflowNodeIds(wf: WorkflowSummary): Promise<string[]> {
+  try {
+    const f = await readProjectFile(wf.path);
+    const parsed = parseWorkflowYaml(f.content);
+    return Object.keys(parsed.nodes).filter(id => id !== '__begin__' && id !== '__userinput__' && id !== '__end__');
+  } catch {
+    return [];
+  }
+}
+
+/** 从任务的 run 记录提取 workflow 节点顺序（未运行时优先用 wfNodes 渲染实际节点，最后才 fallback 单节点 web-dev） */
 function getWorkflowNodeIds(task: TaskInstance): string[] {
   const run = task.activeRun;
   if (run) {
@@ -816,6 +847,7 @@ function getWorkflowNodeIds(task: TaskInstance): string[] {
     if (executed.length > 0) return executed;
     if (run.current_node) return [run.current_node];
   }
+  if (task.wfNodes && task.wfNodes.length > 0) return task.wfNodes;
   return ['web-dev'];
 }
 

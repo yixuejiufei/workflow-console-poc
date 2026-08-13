@@ -319,6 +319,8 @@ function ReviewCanvas({ workflow, run }: { workflow: WorkflowDef | null; run: Wo
 function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflow: WorkflowDef | null }) {
   // 产物存在性探测（v0.5.x 引擎产物走 artifact-files 端点）
   const [artifactOk, setArtifactOk] = useState<boolean | null>(null);
+  // v0.1.49：节点级产物存在性缓存（outputs/{nodeId}.html，探测通过后节点显示产物跳转按钮）
+  const [nodeArtifactOk, setNodeArtifactOk] = useState<Record<string, boolean>>({});
   useEffect(() => {
     let cancelled = false;
     if (run?.run_id && run.status === 'completed') {
@@ -329,6 +331,21 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
     }
     return () => { cancelled = true; };
   }, [run?.run_id, run?.status]);
+
+  // v0.1.49：探测已完成节点的产物文件（outputs/{nodeId}.html）
+  useEffect(() => {
+    let cancelled = false;
+    if (run?.run_id && run.status === 'completed') {
+      const executed = run.executed_nodes || [];
+      const targets = executed.filter(n => n !== '__end__' && nodeArtifactOk[n] === undefined);
+      targets.forEach(async (n) => {
+        const ok = await checkRunArtifact(run.run_id!, `outputs/${n}.html`);
+        if (!cancelled) setNodeArtifactOk(prev => ({ ...prev, [n]: ok }));
+      });
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.run_id, run?.status, run?.executed_nodes]);
 
   // issue-056 契约：trace 回放时间线（run.start → span → generation → run.end）
   const [trace, setTrace] = useState<RunTrace | null>(null);
@@ -406,7 +423,21 @@ function ReviewDetailPanel({ run, workflow }: { run: WorkflowRun | null; workflo
                   <span className={`absolute left-[-16px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow ${dotColor}`} />
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-slate-700 font-mono truncate">{nodeId === '__end__' ? 'end' : nodeId}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${statusBadgeClass(st)}`}>{statusLabel(st)}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {nodeId !== '__end__' && st === 'completed' && nodeArtifactOk[nodeId] && (
+                        <a
+                          href={getArtifactPreviewUrl(run.run_id, `outputs/${nodeId}.html`)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium"
+                          title={`查看 ${nodeId} 产物`}
+                        >
+                          产物 ↗
+                        </a>
+                      )}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${statusBadgeClass(st)}`}>{statusLabel(st)}</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                     <span title="耗时">⏱ {formatDuration(m?.duration_ms)}</span>

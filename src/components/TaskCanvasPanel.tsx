@@ -331,6 +331,8 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   const [pendingDelete, setPendingDelete] = useState<TaskInstance | null>(null);
   // 产物存在性缓存（v0.5.x 引擎产物走 artifact-files 端点，需探测判断）
   const [artifactOk, setArtifactOk] = useState<Record<string, boolean>>({});
+  // v0.1.49：记录 deploy.html 是否存在（预览默认指向 deploy 最终页面；无 deploy 回退 index 汇总）
+  const [artifactDeployOk, setArtifactDeployOk] = useState<Record<string, boolean>>({});
   const nodePositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   // 未运行任务（无 runId 的 pending）持久化到 localStorage，刷新不丢
   // 注意：loadedRef 标记加载完成前不写 localStorage——避免 StrictMode 双执行 effect
@@ -504,13 +506,18 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
   }, [tasks, updateTask]);
 
   // 产物探测：completed 且有 run_id 的任务，检查 artifact-files 端点是否存在产物
+  // v0.1.49：优先探测 deploy.html（默认预览目标）；deploy 不存在则回退探测 index.html 汇总页
   useEffect(() => {
     const completed = tasks.filter(t => t.status === 'completed' && t.runId && artifactOk[t.runId] === undefined);
     if (completed.length === 0) return;
     let cancelled = false;
     completed.forEach(async (t) => {
-      const ok = await checkRunArtifact(t.runId!);
-      if (!cancelled) setArtifactOk(prev => ({ ...prev, [t.runId!]: ok }));
+      const runId = t.runId!;
+      const deployOk = await checkRunArtifact(runId, 'outputs/deploy.html');
+      if (cancelled) return;
+      setArtifactDeployOk(prev => ({ ...prev, [runId]: deployOk }));
+      const ok = deployOk || await checkRunArtifact(runId);
+      if (!cancelled) setArtifactOk(prev => ({ ...prev, [runId]: ok }));
     });
     return () => { cancelled = true; };
   }, [tasks, artifactOk]);
@@ -557,7 +564,7 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
         y += 36;
 
         for (const task of group) {
-          addTaskNodes(nodes, task, 30, y, artifactOk, {
+          addTaskNodes(nodes, task, 30, y, artifactOk, artifactDeployOk, {
             onRun: () => handleRunTask(task.id),
             onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
             onConfirm: () => handleConfirmTask(task.id),
@@ -571,7 +578,7 @@ export default function TaskCanvasPanel({ active }: { active?: boolean }) {
       // 垂直排列（默认）
       for (let i = 0; i < visible.length; i++) {
         const task = visible[i];
-        addTaskNodes(nodes, task, 30, 20 + i * TASK_ROW_H, artifactOk, {
+        addTaskNodes(nodes, task, 30, 20 + i * TASK_ROW_H, artifactOk, artifactDeployOk, {
           onRun: () => handleRunTask(task.id),
           onRequirementChange: (v: string) => handleRequirementChange(task.id, v),
           onConfirm: () => handleConfirmTask(task.id),
@@ -831,6 +838,7 @@ function addTaskNodes(
   ox: number,
   oy: number,
   artifactOk: Record<string, boolean>,
+  artifactDeployOk: Record<string, boolean>,
   handlers: {
     onRun: () => void;
     onRequirementChange: (v: string) => void;
@@ -841,9 +849,10 @@ function addTaskNodes(
   const taskNodeStatus = task.status;
 
   // 产物预览 URL：completed + 产物探测通过（v0.5.x 引擎产物走 artifact-files 端点，run.result 已为空）
+  // v0.1.49：默认展示 deploy agent 部署渲染后的最终页面（outputs/deploy.html）；无 deploy 则回退 outputs/index.html 汇总页
   let previewUrl: string | null = null;
   if (task.status === 'completed' && task.runId && artifactOk[task.runId]) {
-    previewUrl = getArtifactPreviewUrl(task.runId, 'outputs/index.html');
+    previewUrl = getArtifactPreviewUrl(task.runId, artifactDeployOk[task.runId] ? 'outputs/deploy.html' : 'outputs/index.html');
   }
 
   nodes.push({

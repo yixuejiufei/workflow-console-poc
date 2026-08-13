@@ -75,8 +75,16 @@ export interface NodeConfigResponse {
 export const getNodeConfig = (runId: string, nodeId: string) =>
   api.get<NodeConfigResponse>(`/workflow/runs/${runId}/nodes/${nodeId}/config`).then(r => r.data);
 
+/**
+ * artifact-files 端点 URL 编码：逐段 encodeURIComponent 并保留 "/" 分隔符。
+ * 若整体 encodeURIComponent（把 "/" 编成 %2F），浏览器不认 %2F 为路径分隔符，
+ * 导致 index.html 内相对链接（deploy.html）基于 .../artifact-files/ 解析、丢掉 outputs/ 段 → 404。
+ */
+const encodeArtifactPath = (filePath: string) =>
+  filePath.split('/').map(encodeURIComponent).join('/');
+
 export const getArtifactPreviewUrl = (runId: string, filePath: string) =>
-  `/api/v1/workflow/runs/${runId}/artifact-files/${encodeURIComponent(filePath)}`;
+  `/api/v1/workflow/runs/${runId}/artifact-files/${encodeArtifactPath(filePath)}`;
 
 /**
  * 探测 run 是否存在产物（v0.5.x 引擎产物走 snapshot 磁盘 + artifact-files 端点，
@@ -85,7 +93,7 @@ export const getArtifactPreviewUrl = (runId: string, filePath: string) =>
  * 注意：artifact-files 端点仅支持 GET（HEAD 返回 405），探测后取消 body 读取。
  */
 export const checkRunArtifact = (runId: string, filePath = 'outputs/index.html') =>
-  fetch(`/api/v1/workflow/runs/${runId}/artifact-files/${encodeURIComponent(filePath)}`)
+  fetch(`/api/v1/workflow/runs/${runId}/artifact-files/${encodeArtifactPath(filePath)}`)
     .then(r => {
       if (r.ok && r.body) r.body.cancel();
       return r.ok;

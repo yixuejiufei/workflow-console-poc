@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.48**：修复【预览页面】内相对链接丢失 outputs/ 段（点击 404）——根因：`getArtifactPreviewUrl`/`checkRunArtifact` 用 `encodeURIComponent(filePath)` 整体编码，把 `outputs/index.html` 编成 `outputs%2Findex.html`，浏览器不把 `%2F` 当路径分隔符，导致预览页（index.html）内相对链接（deploy.html 等）基于 `.../artifact-files/` 解析、丢掉 `outputs/` 段 → 点击 404。修复：新增 `encodeArtifactPath` 逐段编码并保留 `/` 分隔符，链接恢复为 `.../artifact-files/outputs/deploy.html`（预览页正常）
 - **v0.1.47**：【任务画布】按 workflow 实际节点渲染（去掉 web-dev 硬编码）——根因：addTaskNodes 固定生成 begin→userinput→web-dev→end 四节点，选择非 web-dev 工作流（如 Factory Workflow：main→dev→test→deploy）运行时画布仍显示 web-dev 结构。修复：①新增 getWorkflowNodeIds() 从 run 记录提取实际节点顺序（executed_nodes → current_node → fallback 单节点 web-dev），addTaskNodes 按节点列表动态生成 `task__wf-<nodeId>` 节点横向排列（NODE_GAP=130）；②edges 改为逐节点串联 userinput→节点1→…→节点N→end；③任务拖拽从硬编码后缀列表改为动态匹配 `__` 前缀子节点；④workflowNodeStatus() 按 executed_nodes/current_node 判断各节点 completed/running 状态
 - **v0.1.46**：【Agent】页签布局对齐【任务测评】【工作流】左中右实现——去掉整页 header，改为与任务测评一致的三栏：左侧 w-72 Agent 列表（header「Agent 列表」+「+ 新建 Agent」按钮、新建表单内嵌左栏）；中间 flex-1 详细配置（输入 Schema / System Prompt / agent.yaml）；右侧 w-80 Agent 基本信息（名称/版本/模型/温度/Prompt 版本/图入口/描述/路径）
 - **v0.1.45**：【Agent】三栏布局顺序修正——中栏（详细配置）与右栏（Agent 信息）DOM 顺序调整，确保视觉排列为「左侧列表 → 中间详细配置 → 右侧基本信息」（flex 布局按 DOM 顺序渲染，先前中/右顺序颠倒）

@@ -65,17 +65,24 @@ function formatTime(ts?: string | number): string {
 
 /**
  * v0.1.52：兼容 run 时间戳的两种格式——
- * - listWorkflowRuns 返回 ISO 字符串（"2026-08-13T07:05:48.424230"）
+ * - listWorkflowRuns 返回 ISO 字符串（"2026-08-13T07:05:48.424230" 或带 +00:00/Z）
  * - getWorkflowRun 返回 Unix 秒浮点数（1786575948.42423）
  * 数字 < 1e12 视为秒（× 1000 转毫秒），>= 1e12 视为已是毫秒。
  * traceTimestamp 已统一为 ISO 字符串，不走这里。
+ *
+ * T20260814（时区修复）：后端契约统一为「naive ISO 即 UTC 墙钟」。
+ * 无时区后缀的 ISO 字符串按 UTC 解析（补 'Z'），避免 JS 按本地时区
+ * （如 UTC+8）解析导致显示偏早 8 小时；带时区后缀的 ISO 正常解析。
  */
 function parseRunTimestamp(ts?: string | number): number | undefined {
   if (ts == null || ts === '') return undefined;
   if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts;
   const asNum = Number(ts);
   if (!isNaN(asNum) && /^\d+(\.\d+)?$/.test(ts)) return asNum < 1e12 ? asNum * 1000 : asNum;
-  const d = new Date(ts).getTime();
+  const s = String(ts).trim();
+  // 判断是否带时区后缀（Z / ±hh:mm / ±hhmm）：日期部分（前 10 字符）的 '-' 不算
+  const hasTzSuffix = /(Z|[+-]\d{2}:?\d{2})$/i.test(s);
+  const d = new Date(hasTzSuffix ? s : s + 'Z').getTime();
   return isNaN(d) ? undefined : d;
 }
 

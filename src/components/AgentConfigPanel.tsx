@@ -5,6 +5,7 @@ import {
   writeProjectFile,
   listAgents,
   createAgent,
+  deleteAgent,
   fetchLiteLLMModels,
   type AgentSummary,
   type LiteLLMModelInfo,
@@ -77,6 +78,8 @@ export default function AgentConfigPanel({ runId }: Props) {
   const [newName, setNewName] = useState('');
   const [newModel, setNewModel] = useState('deepseek-v4-flash');
   const [newDesc, setNewDesc] = useState('');
+  // issue-097 (v0.1.60): 新建 agent 自定义 path（如 agents/deploy.yaml），留空走自动生成
+  const [newPath, setNewPath] = useState('');
   const [creating, setCreating] = useState(false);
   // v0.1.56: 新建 Agent 模型下拉 —— 只显示 YiNengProject-coding-agent-poc 虚拟 key 可用模型
   const [agentModels, setAgentModels] = useState<LiteLLMModelInfo[] | null>(null);
@@ -265,10 +268,17 @@ export default function AgentConfigPanel({ runId }: Props) {
     setCreating(true);
     setError(null);
     try {
-      const res = await createAgent(newName.trim(), newModel, newDesc.trim());
+      // v0.1.60 (issue-097): 透传 path 字段；留空走引擎自动生成
+      const res = await createAgent({
+        name: newName.trim(),
+        path: newPath.trim() || undefined,
+        model: newModel,
+        description: newDesc.trim(),
+      });
       setShowCreate(false);
       setNewName('');
       setNewDesc('');
+      setNewPath('');
       setSavedMsg(`Agent "${res.name}" 已创建 ✓`);
       await refreshAgents();
       // 自动选中新 agent
@@ -278,6 +288,41 @@ export default function AgentConfigPanel({ runId }: Props) {
       setError(`创建失败: ${e?.response?.data?.detail || e.message}`);
     } finally {
       setCreating(false);
+    }
+  };
+
+  // v0.1.60 (issue-094/096): 删除 agent（含版本指定/全删/workflow 阻塞处理）
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; version?: string; name: string } | null>(null);
+
+  const handleDelete = async (agentPath: string, version: string | undefined, displayName: string) => {
+    if (!window.confirm(
+      `确认删除 Agent "${displayName}"${version ? ` (v${version})` : ' 的所有版本'}？\n\n该操作不可撤销，被 workflow 引用时会阻断。`
+    )) return;
+    setDeleting(agentPath);
+    setError(null);
+    try {
+      // agent_path -> agent_id（去掉 agents/ 前缀和 .yaml 后缀，issue-097 路径格式）
+      const agentId = agentPath.replace(/^agents\//,'').replace(/\.yaml$/,'');
+      const res = await deleteAgent(agentId, version);
+      const msg = version
+        ? `已删除 "${displayName}" v${res.deleted_version || version}（清理 history ${res.history_rows} 行）✓`
+        : `已删除 "${displayName}" 全部 ${res.versions.length} 个版本（清理 history ${res.history_rows} 行）✓`;
+      setSavedMsg(msg);
+      setSelected(null);
+      await refreshAgents();
+    } catch (e: any) {
+      // 409: 被 workflow 引用，提取 blocking_workflows 给用户看
+      if (e?.response?.status === 409) {
+        const data = e.response.data || {};
+        const blockers = (data.blocking_workflows || []) as Array<{ workflow_id: string; node_id: number; agent_ref: string }>;
+        const detail = `删除失败：agent 被 workflow 引用\n\n${blockers.map(b => `  • ${b.workflow_id} 节点 #${b.node_id} → ${b.agent_ref}`).join('\n')}\n\n请先修改对应 workflow 后再试。`;
+        setError(detail);
+      } else {
+        setError(`删除失败: ${e?.response?.data?.detail || e.message}`);
+      }
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -311,6 +356,19 @@ export default function AgentConfigPanel({ runId }: Props) {
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="如: web-dev, test-agent"
                 className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            {/* v0.1.60 (issue-097): path 字段（可选，留空走引擎自动生成 agents/{name}.yaml） */}
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1">
+                YAML 路径 <span className="text-slate-400">（可选，如 agents/deploy.yaml；留空自动生成）</span>
+              </label>
+              <input
+                type="text"
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
+                placeholder="agents/deploy.yaml"
+                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
             <div>
@@ -391,23 +449,39 @@ export default function AgentConfigPanel({ runId }: Props) {
           {agents.length === 0 && !loading && (
             <div className="px-4 py-6 text-xs text-slate-400 text-center">暂无 Agent，点击上方"新建 Agent"创建</div>
           )}
-          {agents.map((agent) => (
-            <button
+          {agents.map((agent) => {
+            const isDeleting = deleting === agent.path;
+            return (
+            <div
               key={agent.path}
-              onClick={() => { setSelected(agent); setError(null); setSavedMsg(null); }}
-              className={`w-full px-4 py-3 text-left hover:bg-slate-50 ${selected?.path === agent.path ? 'bg-blue-50' : ''}`}
+              className={`w-full px-4 py-3 hover:bg-slate-50 cursor-pointer ${selected?.path === agent.path ? 'bg-blue-50' : ''} ${isDeleting ? 'opacity-50' : ''} flex items-start justify-between gap-2`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800">{agent.name}</span>
-                <span className="text-[9px] text-slate-400 font-mono">{agent.version}</span>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{agent.model}</div>
-              <div className="text-[9px] text-slate-400 font-mono mt-0.5 truncate">{agent.path}</div>
-              {agent.description && (
-                <div className="text-[9px] text-slate-400 mt-0.5 truncate">{agent.description}</div>
-              )}
-            </button>
-          ))}
+              <button
+                onClick={() => { setSelected(agent); setError(null); setSavedMsg(null); }}
+                className="flex-1 text-left min-w-0"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-800 truncate">{agent.name}</span>
+                  <span className="text-[9px] text-slate-400 font-mono shrink-0 ml-1">{agent.version}</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">{agent.model}</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-0.5 truncate">{agent.path}</div>
+                {agent.description && (
+                  <div className="text-[9px] text-slate-400 mt-0.5 truncate">{agent.description}</div>
+                )}
+              </button>
+              {/* v0.1.60 (issue-094/096): 删除按钮（留 version 未指定 = 删除全部版本） */}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(agent.path, undefined, agent.name); }}
+                disabled={isDeleting}
+                title="删除 agent（全部版本）"
+                className="text-[10px] px-1.5 py-1 text-red-500 hover:bg-red-50 hover:text-red-700 rounded shrink-0 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? '…' : '🗑'}
+              </button>
+            </div>
+            );
+          })}
         </div>
         {error && <div className="text-[10px] text-red-600 bg-red-50 p-2 border-t border-red-100">{error}</div>}
       </div>

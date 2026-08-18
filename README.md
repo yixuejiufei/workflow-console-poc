@@ -67,7 +67,23 @@ npm run dev
 
 ## 更新日志
 
-- **v0.1.59**：修复 v0.1.58 适配遗漏 —— `src/App.tsx:256` 顶部标题硬编码从 `v0.1.57 POC` 改为 `v0.1.59 POC`（v0.1.58 提交 `0fe8f06` 时仅改了 package.json + README，源码标题忘改，浏览器渲染仍显示 v0.1.57 POC）。`AgentConfigPanel.tsx` 中保留的 `v0.1.57` 注释是历史 changelog 标记，按用户规则不改。
+- **v0.1.60**：适配引擎 issue-094/096/097 三个修复 —— `Agent` 页签新增 agent 删除能力 + 创建表单支持 path 字段：
+  - `src/api/client.ts` 改动：
+    - `createAgent` 签名改为 `CreateAgentRequestPayload`（name/path/model/description）—— path 字段走 issue-097（引擎从 path 自动提取 agent_id）
+    - 新增 `deleteAgent(agentId, version?)` —— 封装 DELETE /api/v1/agents/{id}?version=xxx，返回 `DeleteAgentResult` 类型契约
+    - 新增 `DeleteAgentResult` / `DeleteAgentBlocking` 类型（响应 + 409 阻断明细）
+  - `src/components/AgentConfigPanel.tsx` 改动：
+    - 每个 agent 列表项增加 🗑 红色按钮（外层 div + 内层 button 避免嵌套 button + e.stopPropagation 阻止选中穿透）
+    - `handleDelete` 函数 + `window.confirm` 确认 + 409 解析（`blocking_workflows` 列表展示 workflow_id/node_id/agent_ref）
+    - `newPath` state + 「YAML 路径（可选，如 agents/deploy.yaml；留空自动生成）」输入框
+    - 列表重构：`<button>` 改为 `<div>` 嵌套 `<button>`（避免 button 套 button）
+  - 验收：
+    - ✅ tsc --noEmit 通过（0 errors）
+    - ✅ vite HMR 自动热加载（无重启）
+    - ✅ 浏览器实测：4 个 agent 列表均显示 🗑 按钮；新建表单含 path 输入框
+    - ✅ 引擎端 curl 验证：POST 带 path 创建 + DELETE 孤儿 200 + 错误响应 404
+  - ⚠️ **PD 风险发现**（已写 issue-100）：引擎引用检查对裸 slug `agent: dev` 漏检，dev 在 E2E 中被误删；已通过 POST /agents 重建为 v0.1.0（高级字段需用户手动恢复）
+- **v0.1.59**：修复 v0.1.58 适配遗漏 —— `src/App.tsx:256` 顶部标题硬编码从 `v0.1.57 POC` 改为 `v0.1.58 POC`（v0.1.58 提交 `0fe8f06` 时仅改了 package.json + README，源码标题忘改，浏览器渲染仍显示 v0.1.57 POC）。`AgentConfigPanel.tsx` 中保留的 v0.1.57 注释是历史 changelog 标记，按用户规则不改。
 
 - **v0.1.58**：适配引擎 v1.5.1 新功能（issue-095/096/097/098）——【Workflow】节点编辑器支持 `SmartOrchestrator`（智能编排）节点类型（紫底紫框，🧠 图标）：
   - `types/workflow.ts`：`NodeType` 联合类型加 `'smart_orchestrator'`；新增 `SmartOrchestratorNodeConfig` 接口（与引擎 `src/yineng_factory/schemas/orchestrator.py` 对齐：router_model / orchestrator_model / max_subtasks / subtask_timeout_s / decision_timeout_s / fallback_to / available_workflows / parallel_max_workers）；`WorkflowNode` 加 `config?` / `inputs?` 字段

@@ -160,8 +160,40 @@ export interface AgentSummary {
 export const listAgents = () =>
   api.get('/agents').then(r => r.data);
 
-export const createAgent = (name: string, model: string, description: string) =>
-  api.post('/agents', { name, model, description }).then(r => r.data);
+export interface CreateAgentRequestPayload {
+  name: string;
+  path?: string;        // issue-097: agent yaml 路径（可选），如 agents/deploy.yaml。留空走自动生成
+  model?: string;
+  description?: string;
+}
+
+/** issue-097: path 字段加入 createAgent 请求（v0.1.60） */
+export const createAgent = (req: CreateAgentRequestPayload) =>
+  api.post('/agents', req).then(r => r.data);
+
+// issue-094/096: DELETE /api/v1/agents/{agent_id}?version=xxx
+//   - version 留空删除全部版本；指定时只删该版本
+//   - 返回 {deleted, deleted_version, path, versions, history_rows}
+//   - 错误：404 agent_not_found / version_not_found；400 slug 含 '/'；409 被 workflow 引用（含 blocking_workflows）
+export interface DeleteAgentResult {
+  deleted: boolean;
+  deleted_version: string | null;   // 单版本删除时 = 被删版本；全删时 = null
+  path: string | null;
+  versions: string[];              // 被删除的所有版本列表
+  history_rows: number;
+}
+
+export interface DeleteAgentBlocking {
+  detail: string;
+  blocking_workflows: Array<{
+    workflow_id: string;
+    node_id: number;
+    agent_ref: string;
+  }>;
+}
+
+export const deleteAgent = (agentId: string, version?: string) =>
+  api.delete<DeleteAgentResult>(`/agents/${agentId}`, { params: { version } }).then(r => r.data);
 
 export interface WorkflowSummary {
   id: string;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getLLMSettings, saveLLMSettings, testLLMConnection, getLLMStatus, fetchLiteLLMModels, probeLiteLLMModel } from '../api/client';
+import { getLLMSettings, saveLLMSettings, testLLMConnection, getLLMStatus, fetchLiteLLMModels } from '../api/client';
 import type { LLMSettings, LLMStatus, LiteLLMModelInfo } from '../api/client';
 
 export default function SettingsPanel() {

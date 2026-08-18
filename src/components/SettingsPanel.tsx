@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getLLMSettings, saveLLMSettings, testLLMConnection, getLLMStatus } from '../api/client';
-import type { LLMSettings, LLMStatus } from '../api/client';
+import { getLLMSettings, saveLLMSettings, testLLMConnection, getLLMStatus, fetchLiteLLMModels, probeLiteLLMModel } from '../api/client';
+import type { LLMSettings, LLMStatus, LiteLLMModelInfo } from '../api/client';
 
 export default function SettingsPanel() {
   const [settings, setSettings] = useState<LLMSettings | null>(null);
@@ -8,10 +8,40 @@ export default function SettingsPanel() {
   const [loading, setLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ status: string; message: string } | null>(null);
   const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // v0.1.55: 引擎模式下「默认模型」下拉 —— litellm 可用模型列表（实测过滤白名单）
+  const [models, setModels] = useState<LiteLLMModelInfo[] | null>(null);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [manualModel, setManualModel] = useState(false);
 
   useEffect(() => {
     load();
   }, []);
+
+  // v0.1.55: 引擎模式时拉取 litellm 可用模型（走引擎代理端点，issue-093；前端不接触完整 key）
+  useEffect(() => {
+    if (!settings || settings.mode !== 'engine') {
+      setModels(null);
+      return;
+    }
+    let cancelled = false;
+    setModelLoading(true);
+    (async () => {
+      try {
+        const list = await fetchLiteLLMModels();
+        if (cancelled) return;
+        setModels(list);
+      } catch (err: any) {
+        if (!cancelled) {
+          setModels(null);
+          console.warn('加载 litellm 模型列表失败:', err?.response?.data?.detail || err?.message || err);
+        }
+      } finally {
+        if (!cancelled) setModelLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.mode]);
 
   const load = async () => {
     try {
@@ -103,12 +133,60 @@ export default function SettingsPanel() {
 
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">默认模型</label>
-          <input
-            type="text"
-            value={settings.default_model || ''}
-            onChange={(e) => updateField('default_model', e.target.value)}
-            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-          />
+          {settings.mode === 'engine' && !manualModel ? (
+            <div className="flex gap-1 items-center">
+              <select
+                value={models?.some(m => m.id === settings.default_model) ? (settings.default_model || '') : '__custom__'}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setManualModel(true);
+                  } else {
+                    updateField('default_model', e.target.value);
+                  }
+                }}
+                disabled={modelLoading}
+                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+              >
+                {modelLoading && <option value="">加载可用模型...</option>}
+                {!modelLoading && models === null && (
+                  <option value="__custom__">{settings.default_model || '无法连接 litellm，点 ✎ 手动输入'}</option>
+                )}
+                {!modelLoading && models !== null && models.filter(m => m.available).map(m => (
+                  <option key={m.id} value={m.id}>✅ {m.id}</option>
+                ))}
+                {!modelLoading && models !== null && models.filter(m => !m.available).map(m => (
+                  <option key={m.id} value={m.id} disabled>⚠️ {m.id}（当前 key 无权限）</option>
+                ))}
+                {!modelLoading && settings.default_model && models !== null && !models.some(m => m.id === settings.default_model) && (
+                  <option value="__custom__">自定义: {settings.default_model}</option>
+                )}
+              </select>
+              <button
+                type="button"
+                onClick={() => setManualModel(true)}
+                title="手动输入模型名"
+                className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+              >✎</button>
+            </div>
+          ) : (
+            <div className="flex gap-1 items-center">
+              <input
+                type="text"
+                value={settings.default_model || ''}
+                onChange={(e) => updateField('default_model', e.target.value)}
+                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+              />
+              {settings.mode === 'engine' && (
+                <button
+                  type="button"
+                  onClick={() => setManualModel(false)}
+                  title="返回下拉选择"
+                  className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                >▾</button>
+              )}
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 mt-1">engine 模式下为 litellm 可用模型下拉（实测过滤 key 白名单）；✎ 可手动输入自定义值</p>
         </div>
 
         <div>

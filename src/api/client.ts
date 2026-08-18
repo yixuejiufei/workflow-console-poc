@@ -212,4 +212,17 @@ export const testLLMConnection = (settings: Partial<LLMSettings>) =>
 export const getLLMStatus = () =>
   api.get('/settings/llm/status').then(r => r.data);
 
+// ── litellm 可用模型（设置页「默认模型」下拉数据源，v0.1.55）──
+// 走引擎代理端点 GET /api/v1/settings/llm/models（issue-093）：
+// 引擎内部用 settings.yaml 完整 key 调 litellm /v1/models + 实测过滤，返回 [{id, available}]
+// 前端不接触完整 key（引擎 /settings/llm 返回的是掩码 key，直连 litellm 会 401）
+
+export interface LiteLLMModelInfo {
+  id: string;
+  available: boolean;
+}
+
+export const fetchLiteLLMModels = (): Promise<LiteLLMModelInfo[]> =>
+  api.get('/settings/llm/models').then(r => r.data);
+
 export default api;

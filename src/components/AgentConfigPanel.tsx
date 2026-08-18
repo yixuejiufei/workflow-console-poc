@@ -5,7 +5,9 @@ import {
   writeProjectFile,
   listAgents,
   createAgent,
+  fetchLiteLLMModels,
   type AgentSummary,
+  type LiteLLMModelInfo,
 } from '../api/client';
 
 interface Props {
@@ -76,6 +78,10 @@ export default function AgentConfigPanel({ runId }: Props) {
   const [newModel, setNewModel] = useState('deepseek-v4-flash');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  // v0.1.56: 新建 Agent 模型下拉 —— 只显示 YiNengProject-coding-agent-poc 虚拟 key 可用模型
+  const [agentModels, setAgentModels] = useState<LiteLLMModelInfo[] | null>(null);
+  const [agentModelLoading, setAgentModelLoading] = useState(false);
+  const [newModelManual, setNewModelManual] = useState(false);
 
   const refreshAgents = async () => {
     try {
@@ -88,6 +94,23 @@ export default function AgentConfigPanel({ runId }: Props) {
 
   useEffect(() => {
     refreshAgents();
+    // v0.1.56: 拉取虚拟 key 可用模型列表（设置页同款数据源）
+    let cancelled = false;
+    setAgentModelLoading(true);
+    (async () => {
+      try {
+        const list = await fetchLiteLLMModels();
+        if (!cancelled) setAgentModels(list);
+      } catch (err: any) {
+        if (!cancelled) {
+          setAgentModels(null);
+          console.warn('加载 litellm 模型列表失败:', err?.response?.data?.detail || err?.message || err);
+        }
+      } finally {
+        if (!cancelled) setAgentModelLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // 选中 agent 时加载配置
@@ -211,12 +234,58 @@ export default function AgentConfigPanel({ runId }: Props) {
             </div>
             <div>
               <label className="block text-[10px] text-slate-500 mb-1">模型</label>
-              <input
-                type="text"
-                value={newModel}
-                onChange={(e) => setNewModel(e.target.value)}
-                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-              />
+              {!newModelManual ? (
+                <div className="flex gap-1 items-center">
+                  <select
+                    value={agentModels?.some(m => m.id === newModel) ? newModel : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setNewModelManual(true);
+                      } else {
+                        setNewModel(e.target.value);
+                      }
+                    }}
+                    disabled={agentModelLoading}
+                    className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+                  >
+                    {agentModelLoading && <option value="">加载可用模型...</option>}
+                    {!agentModelLoading && agentModels === null && (
+                      <option value="__custom__">{newModel || '无法连接 litellm，点 ✎ 手动输入'}</option>
+                    )}
+                    {!agentModelLoading && agentModels !== null && agentModels.filter(m => m.available).map(m => (
+                      <option key={m.id} value={m.id}>✅ {m.id}</option>
+                    ))}
+                    {!agentModelLoading && agentModels !== null && agentModels.filter(m => !m.available).map(m => (
+                      <option key={m.id} value={m.id} disabled>⚠️ {m.id}（当前 key 无权限）</option>
+                    ))}
+                    {!agentModelLoading && newModel && agentModels !== null && !agentModels.some(m => m.id === newModel) && (
+                      <option value="__custom__">自定义: {newModel}</option>
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setNewModelManual(true)}
+                    title="手动输入模型名"
+                    className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                  >✎</button>
+                </div>
+              ) : (
+                <div className="flex gap-1 items-center">
+                  <input
+                    type="text"
+                    value={newModel}
+                    onChange={(e) => setNewModel(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNewModelManual(false)}
+                    title="返回下拉选择"
+                    className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                  >▾</button>
+                </div>
+              )}
+              <p className="text-[9px] text-slate-400 mt-0.5">仅显示 YiNengProject-coding-agent-poc 虚拟 key 可用模型（实测过滤）</p>
             </div>
             <div>
               <label className="block text-[10px] text-slate-500 mb-1">描述</label>

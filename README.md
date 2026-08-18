@@ -67,6 +67,8 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.59**：修复 v0.1.58 适配遗漏 —— `src/App.tsx:256` 顶部标题硬编码从 `v0.1.57 POC` 改为 `v0.1.59 POC`（v0.1.58 提交 `0fe8f06` 时仅改了 package.json + README，源码标题忘改，浏览器渲染仍显示 v0.1.57 POC）。`AgentConfigPanel.tsx` 中保留的 `v0.1.57` 注释是历史 changelog 标记，按用户规则不改。
+
 - **v0.1.58**：适配引擎 v1.5.1 新功能（issue-095/096/097/098）——【Workflow】节点编辑器支持 `SmartOrchestrator`（智能编排）节点类型（紫底紫框，🧠 图标）：
   - `types/workflow.ts`：`NodeType` 联合类型加 `'smart_orchestrator'`；新增 `SmartOrchestratorNodeConfig` 接口（与引擎 `src/yineng_factory/schemas/orchestrator.py` 对齐：router_model / orchestrator_model / max_subtasks / subtask_timeout_s / decision_timeout_s / fallback_to / available_workflows / parallel_max_workers）；`WorkflowNode` 加 `config?` / `inputs?` 字段
   - `utils/yamlParser.ts`：`inferNodeType` 识别 `type=smart_orchestrator`；`parseWorkflowYaml` 透传 `config` / `inputs` 字段；`serializeWorkflow` 输出 `type` 字段 + `serializeSmartConfigPretty` 渲染多行 config（含 `available_workflows` 数组）；普通 agent 节点格式不变（向后兼容已有 workflow.yaml）

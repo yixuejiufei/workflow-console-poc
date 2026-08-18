@@ -195,18 +195,28 @@ function App() {
     const node = { ...wf.nodes[nodeId] };
     if (updates.agent !== undefined) node.agent = updates.agent;
     if (updates.interrupt_after !== undefined) node.interrupt_after = updates.interrupt_after;
+    // v0.1.58: SmartOrchestrator 节点新增字段透传
+    if (updates.type !== undefined) node.type = updates.type;
+    if (updates.config !== undefined) node.config = updates.config;
+    if (updates.inputs !== undefined) node.inputs = updates.inputs;
     wf.nodes[nodeId] = node;
 
     const otherEdges = workflow.edges.filter((e) => e.source !== nodeId);
-    wf.edges = [
-      ...otherEdges,
-      ...newEdges.map((e, i) => ({
-        id: `${nodeId}->${e.target}${e.label ? '-' + e.label : ''}${i > 0 ? '-' + i : ''}`,
-        source: nodeId,
-        target: e.target,
-        label: e.label,
-      })),
-    ];
+    // SmartOrchestrator 节点在 NodeEditModal 内部自管理 edges（onSave 传空数组），
+    // 不能清掉原有边；其他类型节点按现有规则重建
+    if (updates.type === 'smart_orchestrator') {
+      wf.edges = [...workflow.edges];
+    } else {
+      wf.edges = [
+        ...otherEdges,
+        ...newEdges.map((e, i) => ({
+          id: `${nodeId}->${e.target}${e.label ? '-' + e.label : ''}${i > 0 ? '-' + i : ''}`,
+          source: nodeId,
+          target: e.target,
+          label: e.label,
+        })),
+      ];
+    }
 
     setWorkflow(wf);
     const newYaml = serializeWorkflow(wf);

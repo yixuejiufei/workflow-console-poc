@@ -67,6 +67,15 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.58**：适配引擎 v1.5.1 新功能（issue-095/096/097/098）——【Workflow】节点编辑器支持 `SmartOrchestrator`（智能编排）节点类型（紫底紫框，🧠 图标）：
+  - `types/workflow.ts`：`NodeType` 联合类型加 `'smart_orchestrator'`；新增 `SmartOrchestratorNodeConfig` 接口（与引擎 `src/yineng_factory/schemas/orchestrator.py` 对齐：router_model / orchestrator_model / max_subtasks / subtask_timeout_s / decision_timeout_s / fallback_to / available_workflows / parallel_max_workers）；`WorkflowNode` 加 `config?` / `inputs?` 字段
+  - `utils/yamlParser.ts`：`inferNodeType` 识别 `type=smart_orchestrator`；`parseWorkflowYaml` 透传 `config` / `inputs` 字段；`serializeWorkflow` 输出 `type` 字段 + `serializeSmartConfigPretty` 渲染多行 config（含 `available_workflows` 数组）；普通 agent 节点格式不变（向后兼容已有 workflow.yaml）
+  - `components/NodeEditModal.tsx`：只读视图分支显示 SmartOrchestrator config；编辑视图 `SmartOrchestratorForm` 子组件（8 个字段表单：router_model / orchestrator_model / available_workflows 多行输入 / max_subtasks / parallel_max_workers / decision_timeout_s / subtask_timeout_s / fallback_to 下拉）；保存时只传 config + type，不动 edges
+  - `components/NodeDetailPanel.tsx`：只读详情面板同步支持 SmartOrchestrator config 展示
+  - `components/WorkflowCanvas.tsx`：`nodeColor` / `nodeBorder` 加 `smart_orchestrator` 紫色配色（区别 agent 蓝色 / approval 橙色 / end 绿色）
+  - `App.tsx` `handleNodeSave`：透传 `type` / `config` / `inputs` 字段；SmartOrchestrator 类型保留原 edges（不重建）
+  - **端到端验证**：8002 已升级 v1.5.1（git tag `v1.5.1`，commit `3f925cf`）；POST `/project/file` 写入含 `type: smart_orchestrator` 的 workflow → POST `/workflow/run` 触发 → `executed_nodes: ['smart_orchestrator']`，35s 内 completed，router 判定 simple 路径调起子 workflow（`run_id=sub-3933ded9c2d4`），issue-096/097/098 测试 14 passed，issue-095 测试 13 passed
+  - **未启用 B2 subworkflow tools**（设计文档/prompt/draft 已就绪，`main.yaml` 仍为 v0.1.4）；浏览器手动验证流程见下一步
 - **v0.1.57**：【Agent】中间配置区表单化——agent.yaml 文本编辑改为「Agent 配置」表单（显式编辑/保存模式，与节点弹窗一致）：默认只读展示字段（名称/模型/温度/Prompt 版本/图入口/描述/LLM 地址），点【编辑】进入表单可改（模型为下拉——复用 `YiNengProject-coding-agent-poc` 虚拟 key 可用模型数据源 `/settings/llm/models`，✅ 可用 / ⚠️ 无权限置灰 / ✎ 手动兜底；名称不可改），【保存】合并回 YAML 提交引擎（版本自动 +0.0.1），【取消】放弃修改。高级字段（命名空间/图入口/引擎模式/LLM 地址）收进「高级配置」折叠；完整 YAML 编辑保留为「▾ 高级 YAML 编辑」折叠（含 input_schema 等结构化字段）
 - **v0.1.56**：【Agent】新建 Agent 表单「模型」改为下拉——只显示 `YiNengProject-coding-agent-poc` 虚拟 key 可用模型（数据源 = 引擎 `/settings/llm/models`，实测过滤：✅ 可用 / ⚠️ 无权限置灰；✎ 手动输入兜底）。与设置页同款交互（v0.1.55 下拉复用）
 - **v0.1.55**：【设置】引擎模式下「默认模型」改为下拉选择 litellm 可用模型——数据源 = 引擎代理端点 `GET /api/v1/settings/llm/models`（**issue-093**，v1.4.4 已实现）：引擎内部用虚拟 key（`YiNengProject-coding-agent-poc`）实测过滤，返回 `[{id, available}]`。前端不接触完整 key（引擎 `/settings/llm` 返回掩码 key，直连 litellm 会 401——实测）。下拉中 ✅=可用、⚠️=无权限（置灰禁选）、当前值不在列表时显示「自定义: xxx」；✎ 按钮切换回手动输入（非 engine 模式保持原输入框）。引擎未实现时优雅降级为手动输入

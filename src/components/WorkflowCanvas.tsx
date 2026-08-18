@@ -32,6 +32,7 @@ const nodeColor = (type: string) => {
   switch (type) {
     case 'approval': return '#fffbeb';
     case 'end': return '#f0fdf4';
+    case 'smart_orchestrator': return '#faf5ff';  // v0.1.58: 紫色区分智能编排节点
     default: return '#ffffff';
   }
 };
@@ -40,6 +41,7 @@ const nodeBorder = (type: string) => {
   switch (type) {
     case 'approval': return '#f59e0b';
     case 'end': return '#22c55e';
+    case 'smart_orchestrator': return '#a855f7';  // purple-500
     default: return '#3b82f6';
   }
 };

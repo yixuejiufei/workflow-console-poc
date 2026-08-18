@@ -1,8 +1,19 @@
 import { load } from 'js-yaml';
-import type { WorkflowDef, WorkflowNode, WorkflowEdge } from '../types/workflow';
+import type { WorkflowDef, WorkflowNode, WorkflowEdge, NodeType, SmartOrchestratorNodeConfig } from '../types/workflow';
 
 const LEVEL_GAP = 220;
 const NODE_GAP = 120;
+
+/**
+ * 推断节点的 type 字段（v0.1.58 新增 smart_orchestrator 识别）
+ * 优先级：显式 type > __end__ > interrupt_after > 有 config 的智能节点 > 默认 agent
+ */
+function inferNodeType(id: string, nodeData: any): NodeType {
+  if (id === '__end__') return 'end';
+  if (nodeData?.type === 'smart_orchestrator') return 'smart_orchestrator';
+  if (nodeData?.interrupt_after) return 'approval';
+  return 'agent';
+}
 
 export function parseWorkflowYaml(text: string): WorkflowDef {
   const data = load(text) as any;
@@ -11,12 +22,16 @@ export function parseWorkflowYaml(text: string): WorkflowDef {
 
   // Build DAG edges from next/default/conditions
   Object.entries(data.nodes || {}).forEach(([id, nodeData]: [string, any]) => {
+    const inferredType = inferNodeType(id, nodeData);
     nodes[id] = {
       id,
-      type: id === '__end__' ? 'end' : nodeData.interrupt_after ? 'approval' : 'agent',
+      type: inferredType,
       agent: nodeData.agent,
       role: nodeData.role,
       interrupt_after: nodeData.interrupt_after,
+      // v0.1.58: SmartOrchestrator 节点配置透传
+      config: nodeData.config as SmartOrchestratorNodeConfig | undefined,
+      inputs: nodeData.inputs as Record<string, string> | undefined,
     };
 
     const next = nodeData.next || {};
@@ -151,6 +166,29 @@ nodes:
 `;
 }
 
+/**
+ * v0.1.58: SmartOrchestratorNodeConfig 序列化辅助（多行内嵌）
+ * js-yaml dump 的输出对单元素数组会写成 `available_workflows:\n  - factory-workflow`
+ * （带 - 开头），我们直接手写多行 array 语法更整齐。
+ */
+function serializeSmartConfigPretty(cfg: SmartOrchestratorNodeConfig): string {
+  const lines: string[] = [];
+  lines.push(`      router_model: ${cfg.router_model}`);
+  lines.push(`      orchestrator_model: ${cfg.orchestrator_model}`);
+  if (cfg.max_subtasks !== undefined) lines.push(`      max_subtasks: ${cfg.max_subtasks}`);
+  if (cfg.subtask_timeout_s !== undefined) lines.push(`      subtask_timeout_s: ${cfg.subtask_timeout_s}`);
+  if (cfg.decision_timeout_s !== undefined) lines.push(`      decision_timeout_s: ${cfg.decision_timeout_s}`);
+  if (cfg.fallback_to) lines.push(`      fallback_to: ${cfg.fallback_to}`);
+  // available_workflows 必有，去重
+  const wf = Array.from(new Set(cfg.available_workflows || []));
+  if (wf.length > 0) {
+    lines.push(`      available_workflows:`);
+    wf.forEach(w => lines.push(`        - ${w}`));
+  }
+  if (cfg.parallel_max_workers !== undefined) lines.push(`      parallel_max_workers: ${cfg.parallel_max_workers}`);
+  return lines.join('\n');
+}
+
 export function serializeWorkflow(wf: WorkflowDef): string {
   // Reverse of parseWorkflowYaml: converts WorkflowDef back to YAML text
   // Build a map of source -> edges for determining next/default/conditions
@@ -172,20 +210,37 @@ export function serializeWorkflow(wf: WorkflowDef): string {
   Object.entries(wf.nodes).forEach(([id, node]) => {
     if (id === '__end__') return; // synthetic
     lines += `  ${id}:\n`;
-    if (node.agent) lines += `    agent: ${node.agent}\n`;
-    if (node.interrupt_after) lines += `    interrupt_after: true\n`;
-    
+    // v0.1.58: 显式 type 字段（仅 smart_orchestrator 输出；agent 走引擎默认）
+    if (node.type === 'smart_orchestrator') {
+      lines += `    type: smart_orchestrator\n`;
+      if (node.config) {
+        lines += `    config:\n`;
+        lines += serializeSmartConfigPretty(node.config) + '\n';
+      }
+    } else {
+      // 普通 agent/approval 节点：保持原行为
+      if (node.agent) lines += `    agent: ${node.agent}\n`;
+      if (node.interrupt_after) lines += `    interrupt_after: true\n`;
+    }
+    // inputs 字段（可选；smart_orchestrator 与 agent 节点都可用）
+    if (node.inputs && Object.keys(node.inputs).length > 0) {
+      lines += `    inputs:\n`;
+      Object.entries(node.inputs).forEach(([k, v]) => {
+        lines += `      ${k}: ${v}\n`;
+      });
+    }
+
     const edges = outgoing[id] || [];
     // Separate labeled edges (conditions) from unlabeled (default)
     const labeled = edges.filter(e => e.label);
     const unlabeled = edges.filter(e => !e.label);
-    
+
     if (labeled.length > 0) {
       lines += '    next:\n';
       if (unlabeled.length > 0) {
         lines += `      default: ${unlabeled[0].target}\n`;
       }
-      lines += '      conditions:\n';
+      lines += `      conditions:\n`;
       labeled.forEach(e => {
         lines += `        ${e.label}: ${e.target}\n`;
       });

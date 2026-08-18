@@ -82,11 +82,22 @@ export default function AgentConfigPanel({ runId }: Props) {
   const [agentModels, setAgentModels] = useState<LiteLLMModelInfo[] | null>(null);
   const [agentModelLoading, setAgentModelLoading] = useState(false);
   const [newModelManual, setNewModelManual] = useState(false);
+  // v0.1.57: 中间配置区表单化编辑（显式编辑/保存模式，与节点弹窗交互一致）
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<AgentInfo>({});
+  const [editModelManual, setEditModelManual] = useState(false);
+  const [showAdvancedYaml, setShowAdvancedYaml] = useState(false);
 
   const refreshAgents = async () => {
     try {
       const data = await listAgents();
       setAgents(data?.agents || []);
+      // v0.1.57: 选中项同步最新版本号（表单/YAML 保存后引擎 seed bump，避免右侧面板版本滞后）
+      setSelected((prev) => {
+        if (!prev) return prev;
+        const updated = (data?.agents || []).find((a) => a.path === prev.path);
+        return updated || prev;
+      });
     } catch (e: any) {
       setError(`加载 Agent 列表失败: ${e?.response?.data?.detail || e.message}`);
     }
@@ -140,6 +151,13 @@ export default function AgentConfigPanel({ runId }: Props) {
         setAgentYaml(agentFile.content);
         setSystemPrompt(promptFile.content);
         setPromptPath(promptFile.path);
+        try {
+          setForm((yaml.load(agentFile.content) as AgentInfo) || {});
+        } catch {
+          setForm({});
+        }
+        setEditing(false);
+        setShowAdvancedYaml(false);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -169,6 +187,69 @@ export default function AgentConfigPanel({ runId }: Props) {
       await writeProjectFile(selected.path, agentYaml, runId || undefined);
       setSavedMsg('Agent 配置已保存 ✓');
       refreshAgents();
+      try {
+        setForm((yaml.load(agentYaml) as AgentInfo) || {});
+      } catch { /* ignore */ }
+      setEditing(false);
+    } catch (e: any) {
+      setError(`保存失败: ${e?.response?.data?.detail || e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // v0.1.57: 表单编辑 handlers —— 显式编辑/保存模式
+  const handleEdit = () => {
+    try {
+      setForm((yaml.load(agentYaml) as AgentInfo) || {});
+    } catch {
+      setForm({});
+    }
+    setEditModelManual(false);
+    setEditing(true);
+    setError(null);
+    setSavedMsg(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+    try {
+      setForm((yaml.load(agentYaml) as AgentInfo) || {});
+    } catch {
+      setForm({});
+    }
+  };
+
+  const handleSaveForm = async () => {
+    if (!selected) return;
+    if (!form.model || !form.model.trim()) {
+      setError('模型不能为空');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      const obj: any = (yaml.load(agentYaml) as any) || {};
+      const merged: any = { ...obj };
+      if (form.description !== undefined) merged.description = form.description;
+      if (form.model !== undefined) merged.model = form.model.trim();
+      if (form.temperature !== undefined && form.temperature !== null) merged.temperature = form.temperature;
+      else if (form.temperature === null) delete merged.temperature;
+      if (form.prompt_version !== undefined) merged.prompt_version = form.prompt_version;
+      if (form.namespace !== undefined) merged.namespace = form.namespace;
+      if (form.graph_entry !== undefined) merged.graph_entry = form.graph_entry;
+      if (form.engine_mode !== undefined) merged.engine_mode = form.engine_mode;
+      if (form.litellm_base_url !== undefined) merged.litellm_base_url = form.litellm_base_url;
+      const newYaml = yaml.dump(merged, { indent: 2, lineWidth: -1 });
+      setAgentYaml(newYaml);
+      await writeProjectFile(selected.path, newYaml, runId || undefined);
+      setSavedMsg('Agent 配置已保存 ✓（版本自动 +0.0.1）');
+      refreshAgents();
+      try {
+        setForm((yaml.load(newYaml) as AgentInfo) || {});
+      } catch { /* ignore */ }
+      setEditing(false);
     } catch (e: any) {
       setError(`保存失败: ${e?.response?.data?.detail || e.message}`);
     } finally {
@@ -382,21 +463,213 @@ export default function AgentConfigPanel({ runId }: Props) {
 
             <div className="border border-slate-200 rounded p-3">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[11px] font-semibold text-slate-700">agent.yaml</h4>
-                <button
-                  onClick={handleSaveAgent}
-                  disabled={saving}
-                  className="text-[10px] px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white rounded"
-                >
-                  保存 agent.yaml
-                </button>
+                <h4 className="text-[11px] font-semibold text-slate-700">Agent 配置</h4>
+                <div className="flex gap-1">
+                  {!editing ? (
+                    <button
+                      onClick={handleEdit}
+                      className="text-[10px] px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    >
+                      编辑
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        className="text-[10px] px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleSaveForm}
+                        disabled={saving}
+                        className="text-[10px] px-2 py-1 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white rounded"
+                      >
+                        {saving ? '保存中...' : '保存'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              <textarea
-                value={agentYaml}
-                onChange={(e) => setAgentYaml(e.target.value)}
-                className="w-full h-40 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                placeholder="# agent 配置..."
-              />
+
+              {!editing ? (
+                <div className="text-[10px] space-y-1.5">
+                  <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">名称</span><span className="font-medium text-right break-all">{agentInfo?.name || '-'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">模型</span><span className="font-mono text-right break-all">{agentInfo?.model || '-'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">温度</span><span className="font-medium">{agentInfo?.temperature ?? '-'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">Prompt 版本</span><span className="font-medium">{agentInfo?.prompt_version || '-'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">图入口</span><span className="font-mono text-right break-all" title={agentInfo?.graph_entry}>{agentInfo?.graph_entry || '-'}</span></div>
+                  {agentInfo?.description && <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">描述</span><span className="text-right break-all">{agentInfo.description}</span></div>}
+                  {agentInfo?.litellm_base_url && <div className="flex justify-between gap-2"><span className="text-slate-500 shrink-0">LLM 地址</span><span className="font-mono text-right break-all">{agentInfo.litellm_base_url}</span></div>}
+                  <p className="text-[9px] text-slate-400 pt-1">点击「编辑」修改配置，保存后版本自动 +0.0.1</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">名称（不可修改）</label>
+                    <input
+                      type="text"
+                      value={form.name ?? ''}
+                      disabled
+                      className="w-full px-2 py-1.5 text-xs border border-slate-200 bg-slate-50 rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">模型</label>
+                    {!editModelManual ? (
+                      <div className="flex gap-1 items-center">
+                        <select
+                          value={agentModels?.some(m => m.id === form.model) ? form.model : '__custom__'}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') setEditModelManual(true);
+                            else setForm((f) => ({ ...f, model: e.target.value }));
+                          }}
+                          disabled={agentModelLoading}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+                        >
+                          {agentModelLoading && <option value="">加载可用模型...</option>}
+                          {!agentModelLoading && agentModels === null && (
+                            <option value="__custom__">{form.model || '无法连接 litellm，点 ✎ 手动输入'}</option>
+                          )}
+                          {!agentModelLoading && agentModels !== null && agentModels.filter(m => m.available).map(m => (
+                            <option key={m.id} value={m.id}>✅ {m.id}</option>
+                          ))}
+                          {!agentModelLoading && agentModels !== null && agentModels.filter(m => !m.available).map(m => (
+                            <option key={m.id} value={m.id} disabled>⚠️ {m.id}（当前 key 无权限）</option>
+                          ))}
+                          {!agentModelLoading && form.model && agentModels !== null && !agentModels.some(m => m.id === form.model) && (
+                            <option value="__custom__">自定义: {form.model}</option>
+                          )}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setEditModelManual(true)}
+                          title="手动输入模型名"
+                          className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                        >✎</button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 items-center">
+                        <input
+                          type="text"
+                          value={form.model ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditModelManual(false)}
+                          title="返回下拉选择"
+                          className="shrink-0 px-2 py-1.5 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                        >▾</button>
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-400 mt-0.5">仅显示 YiNengProject-coding-agent-poc 虚拟 key 可用模型（实测过滤）</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-slate-500 mb-0.5">温度</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="2"
+                        value={form.temperature ?? ''}
+                        onChange={(e) => setForm((f) => ({ ...f, temperature: e.target.value === '' ? null : Number(e.target.value) }))}
+                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-slate-500 mb-0.5">Prompt 版本</label>
+                      <input
+                        type="text"
+                        value={form.prompt_version ?? ''}
+                        onChange={(e) => setForm((f) => ({ ...f, prompt_version: e.target.value }))}
+                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">描述</label>
+                    <textarea
+                      value={form.description ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                      className="w-full h-16 px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <details className="border border-slate-100 rounded p-2">
+                    <summary className="text-[10px] text-slate-500 cursor-pointer">高级配置</summary>
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">命名空间</label>
+                        <input
+                          type="text"
+                          value={form.namespace ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, namespace: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">图入口</label>
+                        <input
+                          type="text"
+                          value={form.graph_entry ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, graph_entry: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-xs font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">引擎模式</label>
+                        <input
+                          type="text"
+                          value={form.engine_mode ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, engine_mode: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">LLM 地址</label>
+                        <input
+                          type="text"
+                          value={form.litellm_base_url ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, litellm_base_url: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-xs font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </details>
+                  <p className="text-[9px] text-slate-400">输入 Schema 等结构化字段请展开下方「高级 YAML 编辑」</p>
+                </div>
+              )}
+
+              {!showAdvancedYaml ? (
+                <button
+                  onClick={() => setShowAdvancedYaml(true)}
+                  className="mt-2 text-[10px] text-slate-400 hover:text-slate-600"
+                >
+                  ▾ 高级 YAML 编辑
+                </button>
+              ) : (
+                <div className="mt-2 border-t border-slate-100 pt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <h5 className="text-[10px] font-semibold text-slate-600">高级 YAML 编辑（含 input_schema 等完整字段）</h5>
+                    <button
+                      onClick={handleSaveAgent}
+                      disabled={saving}
+                      className="text-[10px] px-2 py-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white rounded"
+                    >
+                      {saving ? '保存中...' : '保存 YAML'}
+                    </button>
+                  </div>
+                  <textarea
+                    value={agentYaml}
+                    onChange={(e) => setAgentYaml(e.target.value)}
+                    className="w-full h-32 px-2 py-1.5 text-[10px] font-mono border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                    placeholder="# agent 配置..."
+                  />
+                </div>
+              )}
             </div>
 
             {savedMsg && <div className="text-xs text-green-600 bg-green-50 p-2 rounded">{savedMsg}</div>}

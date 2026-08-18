@@ -67,6 +67,7 @@ npm run dev
 
 ## 更新日志
 
+- **v0.1.57**：【Agent】中间配置区表单化——agent.yaml 文本编辑改为「Agent 配置」表单（显式编辑/保存模式，与节点弹窗一致）：默认只读展示字段（名称/模型/温度/Prompt 版本/图入口/描述/LLM 地址），点【编辑】进入表单可改（模型为下拉——复用 `YiNengProject-coding-agent-poc` 虚拟 key 可用模型数据源 `/settings/llm/models`，✅ 可用 / ⚠️ 无权限置灰 / ✎ 手动兜底；名称不可改），【保存】合并回 YAML 提交引擎（版本自动 +0.0.1），【取消】放弃修改。高级字段（命名空间/图入口/引擎模式/LLM 地址）收进「高级配置」折叠；完整 YAML 编辑保留为「▾ 高级 YAML 编辑」折叠（含 input_schema 等结构化字段）
 - **v0.1.56**：【Agent】新建 Agent 表单「模型」改为下拉——只显示 `YiNengProject-coding-agent-poc` 虚拟 key 可用模型（数据源 = 引擎 `/settings/llm/models`，实测过滤：✅ 可用 / ⚠️ 无权限置灰；✎ 手动输入兜底）。与设置页同款交互（v0.1.55 下拉复用）
 - **v0.1.55**：【设置】引擎模式下「默认模型」改为下拉选择 litellm 可用模型——数据源 = 引擎代理端点 `GET /api/v1/settings/llm/models`（**issue-093**，v1.4.4 已实现）：引擎内部用虚拟 key（`YiNengProject-coding-agent-poc`）实测过滤，返回 `[{id, available}]`。前端不接触完整 key（引擎 `/settings/llm` 返回掩码 key，直连 litellm 会 401——实测）。下拉中 ✅=可用、⚠️=无权限（置灰禁选）、当前值不在列表时显示「自定义: xxx」；✎ 按钮切换回手动输入（非 engine 模式保持原输入框）。引擎未实现时优雅降级为手动输入
 - **v0.1.54**：【任务测评】时间戳时区修复——根因：后端列表/详情接口返回无时区后缀的 naive ISO（UTC 墙钟），`parseRunTimestamp` 用 `new Date(ts)` 按浏览器本地时区（CST）解析，显示偏早 8 小时，与 trace 节点时间线（正确 epoch）形成倒挂。修复：对无时区 ISO 字符串补 `'Z'` 按 UTC 解析（后端契约：naive ISO 即 UTC 墙钟）；带时区后缀 ISO（+00:00/Z）与 epoch 秒/毫秒路径不变。tsc --noEmit 通过
